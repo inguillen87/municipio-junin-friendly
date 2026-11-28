@@ -30,7 +30,7 @@ export async function verifyPeriodContextBrowser({output}){
  }catch(e){errors.push(e.stack);serve(res,500,'application/json','{"ok":false}');}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
  try{
-  const launched=await launchOwnSyntheticBrowser();browser=launched.browser;const context=await browser.newContext({locale:'es-AR',viewport:{width:1366,height:1100},serviceWorkers:'block'});
+  const launched=await launchOwnSyntheticBrowser();browser=launched.browser;const context=await browser.newContext({locale:'es-AR',viewport:{width:1366,height:1100},serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
   await context.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());const page=await context.newPage();page.setDefaultTimeout(15000);
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>inflight.add(r));page.on('requestfinished',r=>inflight.delete(r));page.on('requestfailed',r=>{inflight.delete(r);failed.push({url:r.url(),error:r.failure()?.errorText});});
   const p=key=>page.locator('[data-program-'+key+']'),f=key=>page.locator('[data-program-field="'+key+'"]');

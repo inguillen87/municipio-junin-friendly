@@ -5,6 +5,7 @@ import {ownLiquidationReview} from '../../assets/own-payroll-liquidation-model.j
 import {formatOwnRunDecimal,OWN_RUN_TYPES} from '../../assets/own-payroll-run-workspace-model.js';
 import {verifyOwnPayrollComparisonUi} from './own-payroll-comparison-ui-qa.mjs';
 import {closeQaHttpServer} from './qa-http-server-close.mjs';
+import {assertNoeliaClassifiedPlanillaCsv} from './noelia-planilla-csv-qa.mjs'; import {employeeReceipt} from '../../assets/native-employee-confirmation-model.js';
 const root=path.resolve(import.meta.dirname,'../..');
 export async function selectNoeliaReceiptTypes(page,types){
  const choices=Object.keys(OWN_RUN_TYPES);
@@ -17,7 +18,7 @@ export async function selectNoeliaReceiptTypes(page,types){
 export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,output,check,browserName='chrome'}){
  assert.ok(['chrome','chromium'].includes(browserName));
  let server,browser,page,drop=false,expectedNumbers;const errors=[],diagnostics=[],writes=[];
- const endpoints=new Map([['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory']]);
+ const endpoints=new Map([['/api/internal-native-employees','nativeEmployee'],['/api/internal-own-payroll-novelties','novelty'],['/api/internal-own-payroll-run','run'],['/api/internal-own-payroll-program','program'],['/api/internal-own-payroll-liquidation','liquidation'],['/api/internal-own-payroll-close','close'],['/api/internal-own-payroll-receipts','receipt'],['/api/internal-employment-catalog','catalog'],['/api/internal-data','directory']]);
  const close=async()=>{try{if(page&&!page.isClosed()){fs.writeFileSync(path.join(output,'browser-transport.json'),JSON.stringify({errors,diagnostics,writes:writes.map(w=>({kind:w.kind,key:w.key,command:w.receipt.body?.command??'calculate'}))},null,2),{flag:'wx'});await page.screenshot({path:path.join(output,'browser-last.png'),fullPage:true,timeout:15000});}}finally{try{await browser?.close();}finally{await closeQaHttpServer(server);}}};
  try{
   server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://local.invalid'),current=getCurrent();res.setHeader('Cache-Control','no-store');const json=(status,v)=>res.writeHead(status,{'Content-Type':'application/json'}).end(JSON.stringify(v));try{
@@ -41,7 +42,7 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.html')?'text/html':'image/svg+xml'}).end(fs.readFileSync(file));
   }catch(e){diagnostics.push(e.message);if(!res.headersSent)json(500,{ok:false,error:'Error del transporte sintético.'});else res.end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
-  browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:{})});const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true,serviceWorkers:'block'});page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+  browser=await chromium.launch({headless:true,...(browserName==='chrome'?{channel:'chrome'}:browserName==='chromium'&&process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{})});const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true,serviceWorkers:'block'});page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   const n=k=>page.locator('[data-n-'+k+']'),idle=()=>page.waitForFunction(()=>document.querySelector('#ownNativeBulkNovelties')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
   // Role changes start a fresh product document; no pending attempt crosses actors.
   const fresh=async url=>{await page.goto('about:blank');await page.goto(origin+url);};
@@ -50,28 +51,62 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    assert.equal(writes.length,before+1,await page.locator('[role=status]:visible').allTextContents());const original=writes.at(-1);assert.equal(original.kind,kind);verify(original.receipt);
    check(await recover.isVisible(),'actual '+kind+' preserves its committed attempt after lost response');await recover.click();await idle();check(writes.length===before+1,'actual '+kind+' readback recovers the same key and body without another write');return original.receipt;
   }
+  async function createNativeDemo(draft){
+   assert.equal(draft.legajo,'19041');assert.equal(draft.jurisdictionCode,'42');
+   await fresh('/nomina-control.html#calculo');
+   // Mount the unchanged built creation component, not the whole Personas page.
+   // Every request below reaches this same server, real handler and QA PostgreSQL.
+   await page.evaluate(async()=>{const {mountEmployeeCreate}=await import('/assets/native-employee-create.js');const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/native-employee-create.css';document.head.append(css);const section=document.createElement('section');section.dataset.qaNativeDemo='true';const label=document.createElement('p');label.textContent='Alta de demostración exclusivamente sintética QA';const button=document.createElement('button');button.type='button';button.id='qa-native-demo-create';button.textContent='Nuevo legajo';section.append(label,button);document.body.append(section);mountEmployeeCreate(button);});
+   await page.waitForFunction(()=>[...document.styleSheets].some(s=>s.href?.endsWith('/assets/native-employee-create.css')),{},{timeout:15000});
+   await page.locator('#qa-native-demo-create').click();
+   const dialog=page.locator('dialog.native-employee-dialog'),form=dialog.locator('form');
+   await form.locator('[name=fullName]:enabled').waitFor();
+   for(const name of ['fullName','dni','cuil','birthDate','legajo','startDate','jobTitle','legalReference'])await form.locator('[name="'+name+'"]').fill(draft[name]);
+   for(const name of ['sexCode','jurisdictionCode','agreementCode','categoryCode','organizationId','sectorCode'])await form.locator('[name="'+name+'"]').selectOption(draft[name]);
+   const before=writes.length;await dialog.getByRole('button',{name:'Revisar alta',exact:true}).click();
+   await dialog.locator('[data-ne-review]:not([hidden])').waitFor();
+   check(writes.length===before,'reviewing the real native creation component performs no write');
+   const review=await dialog.locator('.ne-review').innerText();check(review.includes(draft.fullName)&&review.includes('19041')&&review.includes('42'),'real native creation reviews the original synthetic identity and explicit jurisdiction');
+   const sent=page.waitForRequest(req=>new URL(req.url()).origin===origin&&new URL(req.url()).pathname==='/api/internal-native-employees'&&req.method()==='POST',{timeout:30000});sent.catch(()=>{});
+   const idle=()=>page.waitForFunction(()=>{const d=document.querySelector('dialog.native-employee-dialog');return d?.open&&d.querySelector('[data-ne-confirm]')?.disabled===false;},{},{timeout:30000});
+   const receipt=await commitAndRecover({kind:'nativeEmployee',send:dialog.locator('[data-ne-confirm]'),recover:dialog.locator('[data-ne-recover]'),idle,verify:r=>{employeeReceipt(r,draft);assert.equal(r.replayed,false);}});
+   await dialog.locator('[data-ne-success]:not([hidden])').waitFor();
+   const request=await sent,body=request.postDataJSON(),key=request.headers()['idempotency-key'];
+   assert.deepEqual(Object.keys(body).sort(),['catalogVersion','draft']);assert.deepEqual(body.draft,draft);
+   assert.equal(request.headers()['x-municontrol-employee-scope'],qa.actors.maker.tenantId+':'+qa.actors.maker.membershipId);
+   assert.equal(key,writes.at(-1).key);assert.equal(writes.length,before+1);
+   assert.equal(new URL(await dialog.locator('[data-ne-open]').getAttribute('href'),origin).searchParams.get('contractId'),receipt.contractId);
+   check(receipt.origin==='MUNICONTROL'&&receipt.accountCreated===false&&receipt.payrollCalculated===false,'one real native UI/HTTP/SQL creation is recovered by the same key without an account, payroll or second POST');
+   await dialog.screenshot({path:path.join(output,'native-demo-component-success.png')});
+   await page.goto('about:blank');return {key,body,receipt};
+  }
   async function noveltyDecision({batchId,command}){
    await fresh('/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();
    check(await n('detail').locator('tbody tr').count()===29,'actual '+command+' reviews all 29 novelty rows before deciding');await page.locator('[data-n-decisions] [data-command="'+command+'"]').click();await idle();assert.ok((await n('reviewed').innerText()).includes('29 filas'));await n('confirm').check();
    return commitAndRecover({kind:'novelty',send:n('send'),recover:n('recover'),idle,verify:r=>{assert.equal(r.body.command,command);assert.equal(r.body.batchId,batchId);assert.equal(r.snapshot.rowCount,29);}});
   }
-  async function calculate({period,selection,expectedCount}){
+  async function calculate({period,selection,expectedCount,employeeNumber='A/3501'}){
    await fresh('/nomina-control.html#calculo');const r=k=>page.locator('[data-own-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-run')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
-   await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(await page.locator('[data-own-fields]').evaluate(e=>!e.disabled),(await r('status').innerText())+' '+(await r('readiness-facts').innerText()));check((await r('readiness-facts').innerText()).includes('29 legajos propios')&&(await r('readiness').getAttribute('data-state'))==='success','new calculation verifies the complete real29-contract own roster and approved programme through actual HTTP and SQL');await r('period').fill(period);await r('type').selectOption('monthly');await r('period-end').click();const liquidationDate=await r('date').inputValue();assert.ok(liquidationDate.startsWith(period+'-'));check(!await r('confirm').isChecked(),'declaring the liquidation date requires a fresh explicit review');await r('kind').selectOption(selection.kind);
+   await r('refresh').waitFor({state:'visible'});await r('refresh').click();await ridle();assert.ok(await page.locator('[data-own-fields]').evaluate(e=>!e.disabled),(await r('status').innerText())+' '+(await r('readiness-facts').textContent()));check((await r('readiness-facts').textContent()).includes('29 legajos propios')&&(await r('readiness').getAttribute('data-state'))==='success','new calculation verifies the complete real29-contract own roster and approved programme through actual HTTP and SQL');await r('period').fill(period);await r('type').selectOption('monthly');await r('period-end').click();const liquidationDate=await r('date').inputValue();assert.ok(liquidationDate.startsWith(period+'-'));check(!await r('confirm').isChecked(),'declaring the liquidation date requires a fresh explicit review');await r('kind').selectOption(selection.kind);
    if(selection.kind==='contracts'){
     assert.equal(selection.values.length,1);await r('picker').click();const picker=page.locator('#ownRunPicker');await picker.locator('#ownRunPickerSearch').fill('A/3501');await picker.locator('[data-picker-form] button[type=submit]').click();
-    const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact opaque adopted legajo from PostgreSQL');
+    await page.waitForFunction(()=>document.querySelector('#ownRunPicker [data-picker-form]')?.getAttribute('aria-busy')==='false',{},{timeout:30000});
+    check(await picker.locator('[data-picker-results] input').count()===1&&(await picker.innerText()).includes('A/3501'),'actual own directory still returns the exact opaque adopted legajo from PostgreSQL');
+    if(employeeNumber!=='A/3501'){await picker.locator('#ownRunPickerSearch').fill(employeeNumber);await picker.locator('[data-picker-form] button[type=submit]').click();}
+    const input=picker.locator('[data-picker-results] input[value="'+selection.values[0]+'"]');await input.waitFor();check(await picker.locator('[data-picker-results] input').count()===1,'actual own directory returns the exact selected own legajo from PostgreSQL');
     check((await picker.innerText()).includes('Registro propio de MuniControl'),'picker describes municipal ownership without confusing adopted records with hires');
-    await input.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});check((await r('chips').innerText()).includes('A/3501'),'actual calculator preserves the exact selected identifier');
+    await input.check();await picker.locator('[data-picker-apply]').click();await picker.waitFor({state:'hidden'});check((await r('chips').innerText()).includes(employeeNumber),'actual calculator preserves the exact selected identifier');
    }
    await r('confirm').check();const result=await commitAndRecover({kind:'run',send:r('send'),recover:r('recover'),idle:ridle,verify:value=>{assert.deepEqual(value.body.selection,selection);assert.equal(value.body.liquidationDate,liquidationDate);assert.equal(value.saved.result.employeeCount,expectedCount);}});
-   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');await r('search').fill('a/3501');check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact opaque legajo');
+   check(await r('totals').locator('tr').count()===expectedCount,'actual saved calculation presents every selected employee');
+   // «Detalle por concepto» llega plegado y se abre con animación: la búsqueda vive adentro.
+   await r('concept-details').evaluate(e=>{if(!e.open)e.querySelector('summary').click();});await r('search').waitFor({state:'visible'});await r('search').fill(employeeNumber.toLowerCase());check(await r('rows').locator('tr').count()===6,'actual calculation retains all six concepts for the exact selected employee number');
    return result;
   }
   async function confirmPartial({detail}){
    await fresh('/nomina-control.html#decisiones');const l=k=>page.locator('[data-liq-'+k+']'),lidle=()=>page.waitForFunction(()=>document.querySelector('[data-liq-status]')?.closest('.own-liquidation').getAttribute('aria-busy')==='false',{},{timeout:30000});
    await page.locator('[data-liq-run-id="'+detail.id+'"]').waitFor();await lidle();await page.locator('[data-liq-run-id="'+detail.id+'"]').click();await lidle();await l('command').selectOption('confirm');await l('kind').selectOption('all');
-   check((await l('review-summary').innerText()).includes('1 legajos afectados')&&await l('review-rows').locator('tr').count()===1,'actual confirmation of partial recalculation affects its one original contract');await l('reason').fill('Confirmación exclusivamente sintética del recálculo individual');await l('confirm').check();
+   check((await l('review-summary').innerText()).includes('1 legajo afectado de esta corrida')&&await l('review-rows').locator('tr').count()===1,'actual confirmation of partial recalculation affects its one original contract');await l('reason').fill('Confirmación exclusivamente sintética del recálculo individual');await l('confirm').check();
    return commitAndRecover({kind:'liquidation',send:l('send'),recover:l('recover'),idle:lidle,verify:r=>{assert.equal(r.body.runId,detail.id);assert.equal(r.affected.length,1);assert.equal(r.body.command,'confirm');}});
   }
   async function closePeriod({period}){
@@ -93,15 +128,16 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await p('reason').fill('Revisión independiente de recibos exclusivamente sintéticos QA');await p('confirm').check();return commitAndRecover({kind:'receipt',send:p('approve'),recover:p('recover'),idle:pidle,verify:r=>{assert.equal(r.body.command,'approve');assert.equal(r.body.batchId,batchId);}});
   }
   async function prepare(rows,period){
-   expectedNumbers=rows.map(r=>r.legajo).sort();
+   const before=writes.length;expectedNumbers=rows.map(r=>r.legajo).sort();
    await page.goto(origin+'/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();assert.ok(await n('content').isVisible(),await n('status').innerText());
-   check(await n('people').locator('input').count()===25&&!await n('next').isDisabled(),'actual bulk product shows first 25 of all 29 adopted/native subjects');await n('next').click();check(await n('people').locator('input').count()===4,'second page contains remaining four subjects');
-   await n('search').fill('A/3501');check(await n('people').locator('input').count()===1,'opaque employee number searchable in actual product');await n('select-all').click();check((await n('selection').innerText()).startsWith('29 seleccionados'),'select all retains all pages despite the applied search');
-   await n('period').fill(period);await n('concept').fill('120');await n('amount').fill('20,00');await n('cost').fill('20');await n('legal').fill(rows[0].legalInstrument);await n('add').click();
+   // The product no longer lists the whole roster: it asks whom, and searches among every adopted/native subject.
+   check(await n('people').locator('input').count()===0&&(await n('selection').innerText()).includes('entre 29 legajos'),'actual bulk product offers the search over all 29 adopted/native subjects');
+   await n('search').fill('A/3501');check(await n('people').locator('input').count()===1,'opaque employee number searchable in actual product');await n('select-all').click();check((await n('selection').innerText()).startsWith('29 legajos elegidos de 29'),'select all retains the whole roster despite the applied search');
+   await n('period').fill(period);await n('concept').fill('120');await n('amount').fill('20,00');await n('cost').evaluate(e=>{const more=e.closest('details');if(more)more.open=true;});await n('cost').fill('20');await n('legal').fill(rows[0].legalInstrument);await n('add').click();
    check((await n('count').innerText()).startsWith('29 filas')&&await n('rows').locator('tbody tr').count()===25,'opaque own bulk row validation accepts complete first page');await n('row-next').click();check(await n('rows').locator('tbody tr').count()===4,'remaining own novelty rows preserved in review');
    await n('review').click();await idle();assert.ok(await n('confirm-box').isVisible(),await n('status').innerText());await n('confirm').check();drop=true;await n('send').click();await idle();
    check(await n('recover').isVisible()&&!await n('new').isVisible(),'uncertain committed HTTP response keeps the same preparation pending');const original=writes.at(-1);assert.deepEqual(original.receipt.body.rows,rows);await n('recover').click();await idle();
-   check(await n('new').isVisible()&&!await n('recover').isVisible()&&writes.length===1,'readback recovers the same complete committed body and key without another write');
+   check(await n('new').isVisible()&&!await n('recover').isVisible()&&writes.length===before+1,'readback recovers the same complete committed body and key without another write');
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'bulk product fits '+width+'px');check(await n('refresh').evaluate(e=>e.getBoundingClientRect().height>=44),'bulk primary control accessible at '+width+'px');await page.locator('.own-novelties').screenshot({path:path.join(output,'novedades-'+width+'.png')});}
    await page.setViewportSize({width:1440,height:1100});return original.receipt;
   }
@@ -118,16 +154,16 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await l('review-search').fill('sin-coincidencias-sinteticas');check((await l('review-range').innerText()).startsWith('0 legajos')&&await l('review-totals').innerText()===fullTotals,'zero search matches preserves every affected employee and exact totals');
    if(selection.kind!=='all'){await l('kind').selectOption(selection.kind);await l('values').selectOption(selection.values);}
    else await l('review-search').fill('A/3501');
-   const selected=ownLiquidationReview(detail,selection,command);check((await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'explicit selected decision shows its own affected count');for(const amount of Object.values(selected.totals))assert.ok((await l('review-totals').innerText()).includes(formatOwnRunDecimal(amount)));
+   const selected=ownLiquidationReview(detail,selection,command);check((await l('review-summary').innerText()).includes(selected.count===1?'1 legajo afectado de esta corrida':selected.count+' legajos afectados de esta corrida'),'explicit selected decision shows its own affected count');for(const amount of Object.values(selected.totals))assert.ok((await l('review-totals').innerText()).includes(formatOwnRunDecimal(amount)));
    await l('reason').fill('Decisión exclusivamente sintética del circuito completo');await l('confirm').check();
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'decision review fits '+width+'px');check(await l('review-search').evaluate(e=>e.getBoundingClientRect().height>=44),'review search accessible at '+width+'px');await page.locator('.own-liquidation').filter({has:l('status')}).screenshot({path:path.join(output,'decision-'+command+'-'+width+'.png')});}
    await page.setViewportSize({width:1440,height:1100});drop=true;await l('send').click();await lidle();const original=writes.at(-1);assert.equal(original.kind,'liquidation');assert.deepEqual(original.receipt.body.selection,selection);check(await l('recover').isVisible()&&!await l('next-decision').isVisible(),'uncertain committed decision preserves original body and key');
    await l('kind').evaluate(el=>{el.value='all';el.dispatchEvent(new Event('change',{bubbles:true}));});await l('command').evaluate(el=>{el.value='cancel';el.dispatchEvent(new Event('change',{bubbles:true}));});
-   check((await l('review-summary').innerText()).startsWith(command==='confirm'?'Confirmar':'Anular')&&(await l('review-summary').innerText()).includes(selected.count+' legajos afectados'),'DOM changes cannot replace the scope review of a pending decision');
+   check((await l('review-summary').innerText()).startsWith(command==='confirm'?'Confirmar':'Anular')&&(await l('review-summary').innerText()).includes(selected.count===1?'1 legajo afectado de esta corrida':selected.count+' legajos afectados de esta corrida'),'DOM changes cannot replace the scope review of a pending decision');
    await l('recover').click();await lidle();check(writes.length===before+1&&await l('next-decision').isVisible(),'readback recovers the same full decision without another POST');
    return original.receipt;
   }
-  async function outputs({period,batchId,emissionId,jurisdictions=false}){
+  async function outputs({period,batchId,emissionId,jurisdictions=false,classifiedParticipants=null}){
    await page.goto(origin+'/novedades-nomina.html');await n('refresh').waitFor({state:'visible'});await n('refresh').click();await idle();await n('batch').selectOption(batchId);await n('open').click();await idle();check(await n('detail').locator('tbody tr').count()===29,'approved own novelty detail rechecks all original rows');
    const noveltyEvent=page.waitForEvent('download');noveltyEvent.catch(()=>{});await n('download').click();const noveltyDownload=await noveltyEvent;await noveltyDownload.saveAs(path.join(output,'browser-novedades.csv'));await idle();const noveltyCsv=fs.readFileSync(path.join(output,'browser-novedades.csv'),'utf8');check(noveltyCsv.split('\r\n').length===31&&['A/3501','0901','901'].every(s=>noveltyCsv.includes('"'+s+'"')),'voluntary actual bulk CSV retains all 29 rows and distinct identifiers');
    await page.goto(origin+'/nomina-control.html#reportes');const r=k=>page.locator('[data-report-'+k+']'),ridle=()=>page.waitForFunction(()=>document.querySelector('.own-report')?.getAttribute('aria-busy')==='false');await r('from').waitFor({state:'visible'});await r('from').fill(period);await r('to').fill(period);await r('types').selectOption(['monthly']);await r('consult').click();await ridle();assert.ok(await r('result').isVisible(),await r('status').innerText());
@@ -138,7 +174,19 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    const planillaText=[...fs.readFileSync(path.join(output,'browser-planilla.pdf')).toString().matchAll(/<([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'));check(expectedNumbers.every(n=>planillaText.includes(n)),'downloaded planilla PDF retains every full-scope employee number');
    if(jurisdictions){
     const beforeWrites=writes.length,downloads=[];check(csv.split('\r\n')[0].includes('Jurisdicción'),'actual complete planilla exports its captured jurisdiction');
-    for(const code of ['42','55']){await r('jurisdiction').selectOption(code);check((await r('range').innerText()).includes((code==='42'?'5':'24')+' filas en cada descarga'),'jurisdiction '+code+' retains complete cohort despite the screen search');for(const format of ['csv','xlsx','pdf']){const event=page.waitForEvent('download');event.catch(()=>{});await r(format).click();const download=await event;await download.saveAs(path.join(output,'browser-planilla-'+code+'.'+format));downloads.push(download.suggestedFilename());await ridle();}const rows=fs.readFileSync(path.join(output,'browser-planilla-'+code+'.csv'),'utf8').split('\r\n').filter(Boolean);check(rows.length===(code==='42'?6:25)&&rows.slice(1).every(line=>line.endsWith('"'+code+'"')),'downloaded '+code+' CSV includes every original classified participant');const sheet=Buffer.from(unzipSync(fs.readFileSync(path.join(output,'browser-planilla-'+code+'.xlsx')))['xl/worksheets/sheet1.xml']).toString();check((sheet.match(/<row /g)??[]).length===rows.length&&sheet.includes('>'+code+'<'),'downloaded '+code+' Excel preserves the same full classified scope');const text=[...fs.readFileSync(path.join(output,'browser-planilla-'+code+'.pdf')).toString().matchAll(/<([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'));check(rows.slice(1).every(line=>text.includes(line.split(';')[2].replaceAll('"',''))),'downloaded '+code+' PDF preserves all exact employee identifiers');}
+    assert.ok(Array.isArray(classifiedParticipants)&&classifiedParticipants.length===expectedNumbers.length,'QA_NOELIA_ORIGINAL_CLASSIFIED_COHORT_REQUIRED');
+    assert.deepEqual(classifiedParticipants.map(p=>p.employeeNumber).sort(),expectedNumbers,'QA_NOELIA_ORIGINAL_CLASSIFIED_COHORT');
+    for(const code of ['42','55']){
+     const originalNumbers=classifiedParticipants.filter(p=>p.jurisdiction===code).map(p=>p.employeeNumber);
+     assert.equal(originalNumbers.length,code==='42'?5:24,'QA_NOELIA_ORIGINAL_JURISDICTION_COUNT');
+     await r('jurisdiction').selectOption(code);check((await r('range').innerText()).includes(originalNumbers.length+' filas en cada descarga'),'jurisdiction '+code+' retains complete cohort despite the screen search');
+     for(const format of ['csv','xlsx','pdf']){const event=page.waitForEvent('download');event.catch(()=>{});await r(format).click();const download=await event;await download.saveAs(path.join(output,'browser-planilla-'+code+'.'+format));downloads.push(download.suggestedFilename());await ridle();}
+     const context={'Períodos':period+' a '+period,'Jurisdicción elegida':'Jurisdicción '+code,'Repartición elegida':'Todas','Convenio elegido':'Todos','Rangos':'Legajos: inicio a fin · Reparticiones: inicio a fin · Convenios: inicio a fin','Selección de legajos':'Todos los contratos del alcance'};
+     const exported=assertNoeliaClassifiedPlanillaCsv(fs.readFileSync(path.join(output,'browser-planilla-'+code+'.csv'),'utf8'),{jurisdiction:code,employeeNumbers:originalNumbers,context});
+     check(true,'downloaded '+code+' CSV includes every original classified participant');
+     const sheet=Buffer.from(unzipSync(fs.readFileSync(path.join(output,'browser-planilla-'+code+'.xlsx')))['xl/worksheets/sheet1.xml']).toString();check((sheet.match(/<row /g)??[]).length===exported.rows.length+1&&sheet.includes('>'+code+'<'),'downloaded '+code+' Excel preserves the same full classified scope');
+     const text=[...fs.readFileSync(path.join(output,'browser-planilla-'+code+'.pdf')).toString().matchAll(/<([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'));check(originalNumbers.every(number=>text.includes(number)),'downloaded '+code+' PDF preserves all exact employee identifiers');
+    }
     await r('jurisdiction').selectOption('all');await r('view').selectOption('statistics');await r('grouping').selectOption('jurisdiction');await r('search').fill('');check(await r('rows').locator('tr').count()===12,'actual statistics distinguish both jurisdictions with all six concepts');
     await r('view').selectOption('payroll');await r('jurisdiction').selectOption('not_captured');check(await r('rows').locator('tr').count()===0&&(await r('status').innerText()).includes('No hay filas'),'absence of unclassified participants is reported without invented zeros');await r('jurisdiction').selectOption('all');
     await r('jurisdiction').evaluate(el=>{el.value='invalid-synthetic-choice';el.dispatchEvent(new Event('change',{bubbles:true}));});check(await r('rows').locator('tr').count()===0&&(await r('range').innerText())===''&&(await r('caption').innerText())===''&&await r('csv').isDisabled(),'invalid jurisdiction clears stale rows, coverage, title and export availability');await r('jurisdiction').selectOption('all');check(await r('rows').locator('tr').count()===25&&!await r('csv').isDisabled(),'correcting jurisdiction restores the full original verified scope without a write');
@@ -150,13 +198,14 @@ export async function createNoeliaCircuitBrowser({handlers,env,getCurrent,qa,out
    await page.goto(origin+'/nomina-control.html#recibos');const p=k=>page.locator('[data-receipt-'+k+']'),pidle=()=>page.waitForFunction(()=>document.querySelector('.own-receipt')?.getAttribute('aria-busy')==='false');await p('period').waitFor({state:'visible'});await pidle();await p('period').fill(period);await p('history').click();await pidle();await page.locator('[data-receipt-open="'+emissionId+'"]').click();await pidle();
    check(await p('rows').locator('tr').count()===25&&(await p('state').innerText()).includes('disponibilidad aprobada'),'approved complete receipt set displays in real product');await p('search').fill('A/3501');const event=page.waitForEvent('download');event.catch(()=>{});await p('pdf').click();await(await event).saveAs(path.join(output,'browser-recibos.pdf'));await pidle();
    const fragments=[...fs.readFileSync(path.join(output,'browser-recibos.pdf')).toString().matchAll(/<([a-f0-9]+)> Tj/gi)].map(m=>Buffer.from(m[1],'hex').toString('latin1'));
-   const pdfNumbers=[...new Set(fragments.filter(s=>s.includes(' · Legajo ')).map(s=>s.split(' · Legajo ')[1]))].sort();assert.deepEqual(pdfNumbers,expectedNumbers);check(pdfNumbers.length===29,'actual multipage PDF includes exactly all 29 independently approved employees despite search');
+   // The first page of each receipt names its employee on a line of its own: «Legajo N».
+   const pdfNumbers=[...new Set(fragments.filter(s=>s.startsWith('Legajo ')&&!s.includes(' · ')).map(s=>s.slice(7)))].sort();assert.deepEqual(pdfNumbers,expectedNumbers);check(pdfNumbers.length===29,'actual multipage PDF includes exactly all 29 independently approved employees despite search');
    for(const width of [390,320]){await page.setViewportSize({width,height:1000});check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'receipt product fits '+width+'px');await page.locator('.own-receipt').screenshot({path:path.join(output,'recibos-'+width+'.png')});}
    await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});check(!await p('result').isVisible()&&await p('rows').locator('tr').count()===0,'hiding actual product withdraws nominal receipt view');
    check(await page.evaluate(()=>Object.keys(localStorage).every(k=>!/(novelty|novedad|receipt|recibo|own.?payroll|nominal)/i.test(k))),'own circuit does not persist its nominal views in localStorage');check(errors.length===0&&diagnostics.length===0,'actual built browser circuit has no page or transport exceptions');
-   return {browser:'chrome',productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
+   return {browser:browserName,browserVersion:browser.version(),executableOverride:browserName==='chromium'?(process.env.BROWSER_EXECUTABLE||null):null,productPages:['novedades-nomina.html','nomina-control.html#calculo','nomina-control.html#decisiones','nomina-control.html#cierre','nomina-control.html#reportes','nomina-control.html#recibos'],actualHttp:true,authenticationFixture:true,unrelatedApisUnavailable:true,mobileWidths:[390,320],browserWrites:writes.length,errors,diagnostics};
   }
   const comparison=async ({base,target})=>verifyOwnPayrollComparisonUi({page,origin,output,check,base,target,writeCount:()=>writes.length});
-  return {prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,close};
+  return {createNativeDemo,prepare,noveltyDecision,calculate,decide,confirmPartial,closePeriod,prepareReceipts,approveReceipts,outputs,comparison,close};
  }catch(e){await close();throw e;}
 }

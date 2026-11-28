@@ -25,8 +25,9 @@ export async function verifyNativeSalaryCapacity({major,transport='local',source
   assert.equal(installed.preservationSha256,durable.preservationSha256);assert.equal(installed.preservationSha256,repeated.preservationSha256);
   const after=await db.run("SELECT jsonb_build_object('salary',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM native_salary_event e),'contracts',(SELECT md5(jsonb_agg(to_jsonb(e) ORDER BY id)::text) FROM employment_contract e))");
   assert.deepEqual(before,after);ok(true,'capacity install, durable verification and repetition preserve all prior event bodies and contracts');
-  let streamQueries=0,readRevoked=false;const timings=[];
+  let streamQueries=0,sqlQueries=0,readRevoked=false;const timings=[];
   const streamAdapter={query:async(query,values)=>{
+   sqlQueries++;
    if(!query.startsWith('SELECT public.native_salary_stream_v1('))return adapter.query(query,values);
    streamQueries++;
    assert.equal(values.length,3);return[{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,k)=>values[Number(k)-1]===null?'NULL':q(values[Number(k)-1])),true)}];
@@ -79,6 +80,15 @@ export async function verifyNativeSalaryCapacity({major,transport='local',source
   readRevoked=true;const previousReads=streamQueries;
   const revoked=await request({resource:'stream',page:'1',snapshot:first.snapshotSha256},{expected:403});assert.ok(revoked.code);assert.equal(streamQueries,previousReads);readRevoked=false;
   assert.equal(await db.run('SELECT count(*) FROM native_salary_event'),recordCount);ok(true,'read revocation between blocks opens no SQL query, writes no salary event and preserves every prior attempt');
+  // Opening Parámetros reads the master in blocks while the approvals inbox asks for it whole; both are automatic and each
+  // holds the municipality's catalog lock in SQL while it runs. Met on purpose, neither may be answered «unavailable»:
+  // the one that arrives second repeats its query (more than two queries for the two readings).
+  let readingsMet=false;
+  for(let round=0;round<5&&!readingsMet;round++){
+   const before=sqlQueries,[whole,block]=await Promise.all([request({resource:'bootstrap'},{expected:409}),request({resource:'stream',page:'0'})]);
+   assert.equal(whole.code,'NATIVE_SALARY_STREAM_REQUIRED');assert.equal(block.data.pageIndex,0);assert.equal(block.data.pageCount,first.pageCount);readingsMet=sqlQueries-before>2;
+  }
+  assert.ok(readingsMet,'SIMULTANEOUS_READINGS_NEVER_MET');ok(true,'two simultaneous readings of the complete master by one municipality both answer; the second retries its brief lock');
   if(browser!=='none'){const {verifyNativeSalaryCapacityBrowser}=await import('./lib/native-salary-capacity-browser.mjs');await verifyNativeSalaryCapacityBrowser({handler,env,actor:{...qa.actors.maker,bindingId:qa.ids.binding},output:destination,check:ok,all,classification:boot.classification.items,browserName:browser,setReadRevoked:value=>{readRevoked=value;},eventCount:()=>db.run('SELECT count(*) FROM native_salary_event')});}
   fs.writeFileSync(path.join(destination,'capacity-timings.json'),JSON.stringify(timings,null,2)+'\n');
   assert.ok(timings.every(t=>t.ms<25000),'HANDLER_EXCEEDS_EXISTING_CLIENT_DEADLINE');

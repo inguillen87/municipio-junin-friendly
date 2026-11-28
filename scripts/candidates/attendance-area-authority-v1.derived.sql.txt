@@ -1,0 +1,221 @@
+-- DERIVED REVIEW ARTIFACT attendance-area-authority. Never install a source-only file.
+-- The source SQL below is byte-preserved except its one initial exception barrier and final ROLLBACK;
+-- the reviewed composition appends only the declared facade GRANTs listed in the manifest (runtimeGrants).
+-- DRY RUN BY DEFAULT. Codex must separately attest preimages; COMMIT requires a reviewed Codex marker.
+-- SOURCE CANDIDATE ONLY. NOT AN INSTALLER. No SQL has been executed.
+-- New explicit area grants; leave.request.area.* and global attendance.read
+-- retain their existing meaning. No roles, memberships or scopes are granted.
+BEGIN;
+-- REVIEWED PREIMAGE SLOT: source manifests pin function bodies but not observed installed owner/ACL/metadata/trigger-enable state.
+-- Unattested metadata MUST abort before any source DDL. Do not fill missing values by inference.
+DO $composition_preimage$
+DECLARE p jsonb; actual record; t record;
+BEGIN
+ IF FALSE IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'COMPOSITION_REVIEWED_PREIMAGES_REQUIRED'; END IF;
+ IF pg_catalog.current_setting('session_replication_role') <> 'origin' THEN RAISE EXCEPTION 'COMPOSITION_REPLICATION_ROLE_UNSAFE'; END IF;
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements('[{"signature":null,"function":"attendance_gateway_assert_session_v1","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":"public.digest(text,text)","prosrcSha256":null,"kind":"dependency","function":"digest","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"grh_curated_source_read_lock_v1","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"native_employee_catalog_v1","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"tenant_iam_assert_no_sod_conflict","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"tenant_iam_effective_capabilities","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"tenant_iam_reject_change","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null},{"signature":null,"function":"time_catalog_native_actor_v2","prosrcSha256":null,"kind":"dependency","owner":null,"acl":null,"secdef":null,"config":null,"lang":null,"bin":null,"volatile":null,"strict":null,"parallel":null,"leakproof":null}]'::jsonb) LOOP
+  IF p->>'prosrcSha256' IS NULL OR p->>'owner' IS NULL OR p->>'acl' IS NULL
+    OR p->>'signature' IS NULL OR pg_catalog.jsonb_typeof(p->'secdef') <> 'boolean'
+    OR pg_catalog.jsonb_typeof(p->'config') <> 'array' OR p->>'lang' IS NULL OR p->>'bin' IS NULL
+    OR p->>'volatile' IS NULL OR pg_catalog.jsonb_typeof(p->'strict') <> 'boolean'
+    OR p->>'parallel' IS NULL OR pg_catalog.jsonb_typeof(p->'leakproof') <> 'boolean'
+    THEN RAISE EXCEPTION 'COMPOSITION_PREIMAGE_NOT_ATTESTED: %',coalesce(p->>'signature',p->>'function'); END IF;
+  SELECT x.oid,pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(x.prosrc,'UTF8')),'hex') AS body_hash,
+    pg_catalog.pg_get_userbyid(x.proowner) AS owner_name,COALESCE(x.proacl::text,'<NULL>') AS acl_text,
+    x.prosecdef AS secdef,COALESCE(pg_catalog.to_jsonb(x.proconfig),'[]'::jsonb) AS config,
+    (SELECT l.lanname FROM pg_catalog.pg_language l WHERE l.oid=x.prolang) AS lang,
+    COALESCE(x.probin,'') AS bin,x.provolatile::text AS volatility,x.proisstrict AS is_strict,
+    x.proparallel::text AS parallel_safety,x.proleakproof AS is_leakproof
+    INTO actual FROM pg_catalog.pg_proc x WHERE x.oid=pg_catalog.to_regprocedure(p->>'signature');
+  IF NOT FOUND OR actual.body_hash IS DISTINCT FROM p->>'prosrcSha256'
+    OR actual.owner_name IS DISTINCT FROM p->>'owner' OR actual.acl_text IS DISTINCT FROM p->>'acl'
+    OR actual.secdef IS DISTINCT FROM (p->>'secdef')::boolean OR actual.config IS DISTINCT FROM (p->'config')
+    OR actual.lang IS DISTINCT FROM p->>'lang' OR actual.bin IS DISTINCT FROM p->>'bin'
+    OR actual.volatility IS DISTINCT FROM p->>'volatile' OR actual.is_strict IS DISTINCT FROM (p->>'strict')::boolean
+    OR actual.parallel_safety IS DISTINCT FROM p->>'parallel' OR actual.is_leakproof IS DISTINCT FROM (p->>'leakproof')::boolean
+    THEN RAISE EXCEPTION 'COMPOSITION_FUNCTION_PREIMAGE_CHANGED: %',p->>'signature'; END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements('[]'::jsonb) LOOP
+  IF p->>'enabled' IS NULL OR p->>'enabled' NOT IN ('O','A') THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_NOT_ATTESTED: %',p->>'name';END IF;
+  SELECT x.tgenabled::text AS enabled, x.tgtype::integer AS trigger_type,x.tgfoid AS function_oid,
+   x.tgqual AS condition_value,x.tgnargs AS argument_count INTO t
+   FROM pg_catalog.pg_trigger x WHERE x.tgrelid=pg_catalog.to_regclass(p->>'relation') AND x.tgname=p->>'name';
+  IF NOT FOUND OR t.enabled NOT IN ('O','A') OR t.enabled IS DISTINCT FROM p->>'enabled' OR t.trigger_type IS DISTINCT FROM (p->>'type')::integer
+    OR t.function_oid IS DISTINCT FROM pg_catalog.to_regprocedure(p->>'function') OR t.condition_value IS NOT NULL OR t.argument_count<>0
+    THEN RAISE EXCEPTION 'COMPOSITION_TRIGGER_PREIMAGE_CHANGED: %',p->>'name';END IF;
+ END LOOP;
+ FOR p IN SELECT value FROM pg_catalog.jsonb_array_elements('[{"name":"attendance_area_scope_guard_v1","signature":"public.attendance_area_scope_guard_v1()","redefined":false},{"name":"attendance_area_scope_audit_v1","signature":"public.attendance_area_scope_audit_v1()","redefined":false},{"name":"attendance_area_catalog_label_v1","signature":"public.attendance_area_catalog_label_v1(jsonb,jsonb)","redefined":false},{"name":"attendance_area_context_v1","signature":"public.attendance_area_context_v1(jsonb,text)","redefined":false},{"name":"attendance_area_assert_scope_v1","signature":"public.attendance_area_assert_scope_v1(jsonb,jsonb)","redefined":false}]'::jsonb) LOOP
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc x JOIN pg_catalog.pg_namespace n ON n.oid=x.pronamespace
+    WHERE n.nspname='public' AND x.proname=p->>'name')
+    THEN RAISE EXCEPTION 'COMPOSITION_NEW_FUNCTION_COLLISION: %',p->>'name';END IF;
+ END LOOP;
+END $composition_preimage$;
+-- Attestation input SHA-256: f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695. Missing owner/ACL/metadata/trigger-enable pins fail closed.
+
+INSERT INTO public.iam_capability(capability_key,label,description,scope_kind,sensitivity) VALUES
+ ('attendance.area.read','Consultar asistencia por área','Lectura limitada en servidor al área exacta concedida.','tenant','restricted'),
+ ('attendance.area.devices.propose','Preparar dispositivos esperados','Declarar dispositivos por contrato, área y vigencia.','tenant','privileged'),
+ ('attendance.area.devices.approve','Revisar dispositivos esperados','Decidir declaraciones preparadas por otra persona.','tenant','restricted'),
+ ('attendance.area.devices.audit.read','Consultar historial de dispositivos','Leer historia minimizada del padrón dentro del área concedida.','tenant','restricted')
+ON CONFLICT(capability_key) DO NOTHING;
+
+-- A null sector is the exact unsectored area. There are no wildcards/company
+-- scopes and no inheritance from similarly named leave capabilities or roles.
+CREATE TABLE public.attendance_area_scope(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL,
+ membership_id uuid NOT NULL,
+ source_binding_id uuid NOT NULL,
+ capability_key varchar(96) NOT NULL REFERENCES public.iam_capability(capability_key),
+ organization_unit_source_id text NOT NULL CHECK(organization_unit_source_id~'^(0|[1-9][0-9]{0,18})$'),
+ sector_source_id text CHECK(sector_source_id IS NULL OR sector_source_id~'^(0|[1-9][0-9]{0,18})$'),
+ active boolean NOT NULL,
+ version integer NOT NULL CHECK(version>0),
+ authorization_reference text NOT NULL CHECK(length(btrim(authorization_reference)) BETWEEN 10 AND 500),
+ updated_by_user_email text NOT NULL REFERENCES public.internal_users(email),
+ updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ FOREIGN KEY(membership_id,tenant_id) REFERENCES public.tenant_membership(id,tenant_id),
+ FOREIGN KEY(tenant_id,source_binding_id) REFERENCES public.platform_tenant_source_binding(tenant_id,id),
+ CHECK(capability_key IN('attendance.area.read','attendance.area.devices.propose','attendance.area.devices.approve','attendance.area.devices.audit.read'))
+);
+CREATE UNIQUE INDEX attendance_area_scope_identity_v1 ON public.attendance_area_scope
+ (tenant_id,membership_id,source_binding_id,capability_key,organization_unit_source_id,coalesce(sector_source_id,''));
+CREATE TABLE public.attendance_area_scope_event(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ scope_id uuid NOT NULL REFERENCES public.attendance_area_scope(id),
+ version integer NOT NULL,
+ before_value jsonb,
+ after_value jsonb NOT NULL,
+ recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ UNIQUE(scope_id,version)
+);
+CREATE FUNCTION public.attendance_area_scope_guard_v1() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+BEGIN
+ IF TG_OP IN('DELETE','TRUNCATE') THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SCOPE_IMMUTABLE'; END IF;
+ IF TG_OP='INSERT' AND NEW.version<>1 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SCOPE_VERSION_CONFLICT'; END IF;
+ IF TG_OP='UPDATE' AND (NEW.id IS DISTINCT FROM OLD.id OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
+  OR NEW.membership_id IS DISTINCT FROM OLD.membership_id OR NEW.source_binding_id IS DISTINCT FROM OLD.source_binding_id
+  OR NEW.capability_key IS DISTINCT FROM OLD.capability_key OR NEW.organization_unit_source_id IS DISTINCT FROM OLD.organization_unit_source_id
+  OR NEW.sector_source_id IS DISTINCT FROM OLD.sector_source_id OR NEW.version<>OLD.version+1)
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SCOPE_VERSION_CONFLICT'; END IF;
+ NEW.updated_at:=clock_timestamp(); RETURN NEW;
+END $$;
+CREATE FUNCTION public.attendance_area_scope_audit_v1() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+BEGIN
+ INSERT INTO public.attendance_area_scope_event(scope_id,version,before_value,after_value)
+ VALUES(NEW.id,NEW.version,CASE WHEN TG_OP='INSERT' THEN NULL ELSE to_jsonb(OLD) END,to_jsonb(NEW));
+ RETURN NEW;
+END $$;
+CREATE TRIGGER attendance_area_scope_guard_v1 BEFORE INSERT OR UPDATE OR DELETE ON public.attendance_area_scope
+ FOR EACH ROW EXECUTE FUNCTION public.attendance_area_scope_guard_v1();
+CREATE TRIGGER attendance_area_scope_no_truncate_v1 BEFORE TRUNCATE ON public.attendance_area_scope
+ FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_area_scope_guard_v1();
+CREATE TRIGGER attendance_area_scope_event_no_truncate_v1 BEFORE TRUNCATE ON public.attendance_area_scope_event
+ FOR EACH STATEMENT EXECUTE FUNCTION public.attendance_area_scope_guard_v1();
+CREATE TRIGGER attendance_area_scope_audit_v1 AFTER INSERT OR UPDATE ON public.attendance_area_scope
+ FOR EACH ROW EXECUTE FUNCTION public.attendance_area_scope_audit_v1();
+CREATE TRIGGER attendance_area_scope_event_immutable_v1 BEFORE UPDATE OR DELETE ON public.attendance_area_scope_event
+ FOR EACH ROW EXECUTE FUNCTION public.tenant_iam_reject_change();
+ALTER TABLE public.attendance_area_scope ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_area_scope_event ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.attendance_area_scope,public.attendance_area_scope_event FROM PUBLIC,municontrol_actions_runtime_app;
+
+CREATE FUNCTION public.attendance_area_catalog_label_v1(catalog jsonb,area jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE org_label text; sector_label text; matches bigint; label_value text;
+BEGIN
+ IF jsonb_typeof(area) IS DISTINCT FROM 'object' OR (SELECT count(*) FROM jsonb_object_keys(area))<>2
+  OR NOT area ?& ARRAY['organizationUnitSourceId','sectorSourceId']
+  OR jsonb_typeof(area->'organizationUnitSourceId') IS DISTINCT FROM 'string'
+  OR area->>'organizationUnitSourceId'!~'^(0|[1-9][0-9]{0,18})$'
+  OR (area->'sectorSourceId'<>'null'::jsonb AND (jsonb_typeof(area->'sectorSourceId') IS DISTINCT FROM 'string' OR area->>'sectorSourceId'!~'^(0|[1-9][0-9]{0,18})$'))
+  OR jsonb_typeof(catalog->'items') IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_QUERY_INVALID'; END IF;
+ SELECT count(*),min(item->>'label') INTO matches,org_label FROM jsonb_array_elements(catalog->'items') item
+ WHERE item->>'kind'='organizations' AND item->>'code'=area->>'organizationUnitSourceId';
+ IF matches<>1 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_CATALOG_CHANGED'; END IF;
+ IF area->>'sectorSourceId' IS NOT NULL THEN
+  SELECT count(*),min(item->>'label') INTO matches,sector_label FROM jsonb_array_elements(catalog->'items') item
+  WHERE item->>'kind'='sectors' AND item->>'code'=area->>'sectorSourceId';
+  IF matches<>1 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_CATALOG_CHANGED'; END IF;
+ END IF;
+ -- The catalogue names each component; it does not itself assert that a sector
+ -- belongs to an organization. The explicit grant and historical source do that.
+ label_value:=org_label||CASE WHEN sector_label IS NULL THEN ' / Sin sector' ELSE ' / '||sector_label END;
+ IF org_label IS NULL OR length(btrim(org_label))=0 OR (area->>'sectorSourceId' IS NOT NULL AND length(btrim(coalesce(sector_label,'')))=0)
+  OR length(label_value) NOT BETWEEN 1 AND 500 OR label_value~'[<>[:cntrl:]]' OR label_value<>normalize(label_value,NFC)
+  OR label_value~U&'[\00AD\0600-\0605\061C\06DD\070F\0890-\0891\08E2\180E\200B-\200F\202A-\202E\2060-\2064\2066-\206F\FEFF\FFF9-\FFFB\+0110BD\+0110CD\+013430-\+01343F\+01BCA0-\+01BCA3\+01D173-\+01D17A\+0E0001\+0E0020-\+0E007F]'
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_CATALOG_CHANGED'; END IF;
+ RETURN area||jsonb_build_object('areaLabel',label_value);
+END $$;
+
+-- Private helper. Only externally authenticated facades may call this. Every
+-- operation rechecks the real session, certified release/binding and live IAM.
+CREATE FUNCTION public.attendance_area_context_v1(p jsonb,required_capability text) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE c jsonb; catalog jsonb; capabilities jsonb; all_scopes jsonb:='[]'; scopes jsonb:='[]';
+ s public.attendance_area_scope%ROWTYPE; named_area jsonb; scope_value jsonb; actor_id uuid; fingerprint text;
+BEGIN
+ IF jsonb_typeof(p) IS DISTINCT FROM 'object' OR NOT p ?& ARRAY['actorEmail','actorSessionId','actorSessionVersion','releaseSha','tenantId','membershipId']
+  OR (SELECT count(*) FROM jsonb_object_keys(p))<>6 OR required_capability IS NULL OR required_capability NOT IN('attendance.area.read','attendance.area.devices.propose','attendance.area.devices.approve','attendance.area.devices.audit.read')
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SESSION_INVALID'; END IF;
+ c:=public.attendance_gateway_assert_session_v1(p->>'actorEmail',(p->>'actorSessionId')::uuid,(p->>'actorSessionVersion')::integer,p->>'releaseSha',(p->>'tenantId')::uuid,(p->>'membershipId')::uuid);
+ LOCK TABLE public.iam_role_capability,public.tenant_membership_capability_override,public.attendance_area_scope,
+  public.native_employment_catalog_proposal,public.native_employment_catalog_review IN SHARE MODE NOWAIT;
+ PERFORM public.tenant_iam_assert_no_sod_conflict((c->>'membershipId')::uuid);
+ SELECT coalesce(jsonb_agg(capability_key ORDER BY capability_key),'[]'::jsonb) INTO capabilities
+ FROM public.tenant_iam_effective_capabilities((c->>'membershipId')::uuid)
+ WHERE capability_key IN('attendance.area.read','attendance.area.devices.propose','attendance.area.devices.approve','attendance.area.devices.audit.read');
+ IF NOT capabilities ? required_capability OR NOT capabilities ? 'attendance.area.read' THEN RAISE EXCEPTION 'ATTENDANCE_AREA_CAPABILITY_REQUIRED'; END IF;
+ c:=c||jsonb_build_object('sourceBindingId',c->>'certifiedBindingId','sourceCompanyId',c->>'sourceCompanyId',
+  'actorEmail',p->>'actorEmail','actorSessionId',p->>'actorSessionId','actorSessionVersion',(p->>'actorSessionVersion')::integer,'releaseSha',p->>'releaseSha');
+ BEGIN
+  actor_id:=public.time_catalog_native_actor_v2((c->>'tenantId')::uuid,(c->>'sourceBindingId')::uuid,(c->>'membershipId')::uuid);
+ EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM IN('TIME_CATALOG_EMPLOYMENT_REQUIRED','TIME_CATALOG_ASSIGNMENT_CONTRACT_INVALID','TIME_CATALOG_NATIVE_PERIOD_INVALID')
+   AND required_capability IN('attendance.area.read','attendance.area.devices.audit.read') THEN actor_id:=NULL;
+  ELSE RAISE; END IF;
+ END;
+ IF required_capability IN('attendance.area.devices.propose','attendance.area.devices.approve') AND actor_id IS NULL THEN RAISE EXCEPTION 'ATTENDANCE_AREA_ACTOR_REQUIRED'; END IF;
+ PERFORM public.grh_curated_source_read_lock_v1();
+ IF EXISTS(SELECT 1 FROM public.attendance_area_scope a WHERE a.tenant_id=(c->>'tenantId')::uuid AND a.membership_id=(c->>'membershipId')::uuid
+  AND a.source_binding_id=(c->>'sourceBindingId')::uuid AND a.active AND capabilities ? a.capability_key::text) THEN
+  catalog:=public.native_employee_catalog_v1(c);
+  IF catalog->>'version' IS NULL OR catalog->>'version'!~'^[a-f0-9]{64}$' THEN RAISE EXCEPTION 'ATTENDANCE_AREA_CATALOG_CHANGED'; END IF;
+ ELSE catalog:=jsonb_build_object('items','[]'::jsonb,'version',repeat('0',64)); END IF;
+ FOR s IN SELECT * FROM public.attendance_area_scope a WHERE a.tenant_id=(c->>'tenantId')::uuid AND a.membership_id=(c->>'membershipId')::uuid
+  AND a.source_binding_id=(c->>'sourceBindingId')::uuid AND a.active AND capabilities ? a.capability_key::text ORDER BY a.id LOOP
+  named_area:=public.attendance_area_catalog_label_v1(catalog,jsonb_build_object('organizationUnitSourceId',s.organization_unit_source_id,'sectorSourceId',s.sector_source_id));
+  scope_value:=named_area||jsonb_build_object('scopeId',s.id,'version',s.version);
+  all_scopes:=all_scopes||jsonb_build_array(scope_value||jsonb_build_object('capability',s.capability_key));
+  IF s.capability_key=required_capability THEN scopes:=scopes||jsonb_build_array(scope_value); END IF;
+ END LOOP;
+ IF jsonb_array_length(all_scopes)>2000 OR jsonb_array_length(scopes)>500 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SCOPE_LIMIT'; END IF;
+ -- Hash is an optimistic concurrency token, not authority. It binds session,
+ -- person, every effective grant and catalogue labels; all are reread above.
+ fingerprint:=encode(public.digest(jsonb_build_object('session',p,'binding',c->>'sourceBindingId','company',c->>'sourceCompanyId','database',c->>'sourceDatabase',
+  'actor',actor_id,'capabilities',capabilities,'scopes',all_scopes,'catalogVersion',catalog->>'version')::text,'sha256'),'hex');
+ RETURN c||jsonb_build_object('actorPersonId',actor_id,'capabilities',capabilities,'areaScopes',scopes,'scopeVersion',fingerprint,'areaCatalogVersion',catalog->>'version');
+EXCEPTION WHEN lock_not_available THEN RAISE EXCEPTION 'ATTENDANCE_AREA_BUSY';
+END $$;
+
+CREATE FUNCTION public.attendance_area_assert_scope_v1(c jsonb,area jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE selected jsonb; matches bigint;
+BEGIN
+ IF jsonb_typeof(area) IS DISTINCT FROM 'object' OR NOT area ?& ARRAY['organizationUnitSourceId','sectorSourceId']
+  OR (SELECT count(*) FROM jsonb_object_keys(area))<>2 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_QUERY_INVALID'; END IF;
+ SELECT count(*),jsonb_agg(s)->0 INTO matches,selected FROM jsonb_array_elements(c->'areaScopes') s
+ WHERE s->'organizationUnitSourceId'=area->'organizationUnitSourceId' AND s->'sectorSourceId'=area->'sectorSourceId';
+ IF matches<>1 THEN RAISE EXCEPTION 'ATTENDANCE_AREA_SCOPE_DENIED'; END IF;
+ RETURN area||jsonb_build_object('areaLabel',selected->>'areaLabel');
+END $$;
+
+REVOKE ALL ON FUNCTION public.attendance_area_scope_guard_v1(),public.attendance_area_scope_audit_v1(),
+ public.attendance_area_catalog_label_v1(jsonb,jsonb),public.attendance_area_context_v1(jsonb,text),
+ public.attendance_area_assert_scope_v1(jsonb,jsonb) FROM PUBLIC,municontrol_actions_runtime_app;
+-- CODEX INSTALLATION RULE: replace the final ROLLBACK only after adding an explicit
+-- CODEX_REVIEWED_COMMIT marker bound to the reviewed derived SQL SHA-256 and recorded preimages.
+ROLLBACK;

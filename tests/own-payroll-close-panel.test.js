@@ -71,3 +71,30 @@ test('authority withdrawal keeps a pending closure review hidden until the origi
  const h=harness(t);h.state.detail=closeDetail(1);await h.start();h.q('kind').value='all';await h.act('kind','change');h.q('reason').value='Cierre sintético con autorización original';h.q('confirm').checked=true;await h.act('confirm','change');h.state.networkOnWrite=true;await h.act('form','submit');const original=structuredClone(h.requests.find(r=>r.method==='POST'));h.hide();h.state.caps=[];h.show();h.event('taskchange',{id:'cierre'});await h.settled();assert.equal(h.q('detail').hidden,true);assert.equal(h.q('reason').value,'');assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);
  h.state.caps=[...OWN_CLOSE_WRITE];h.event('taskchange',{id:'cierre'});await h.settled();await h.act('recover');assert.equal(h.q('reason').value,original.body.payload.reason);assert.equal(h.q('kind').value,'all');assert.equal(h.q('fields').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,1);
 });
+
+test('a period whose own roster lists only unconfirmed legajos says so and links to Calcular and Confirmar y anular',async t=>{
+ const h=harness(t),d=closeDetail(1);h.state.detail={...d,captures:[],groups:[],rows:d.rows.map(r=>({...r,state:'missing',runId:null,resultSha256:null,liquidationVersion:null,groupId:null,canClose:false}))};
+ await h.start();
+ assert.equal(h.q('unconfirmed').hidden,false);assert.equal(h.q('empty').hidden,true);
+ assert.match(h.q('unconfirmed-title').textContent,/no tiene resultados propios confirmados para cerrar/);
+ assert.deepEqual(h.q('unconfirmed').querySelectorAll('a').map(a=>a.getAttribute('href')),['/nomina#calculo','/nomina#decisiones']);
+ assert.equal(h.q('send').disabled,true);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});
+
+test('a roster or source that the server could not verify reads as «could not verify, closing stays blocked», not as a corrupted result',async t=>{
+ const h=harness(t);const original=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>new URL(url,'https://synthetic.example.test').searchParams.get('resource')==='detail'?new Response(JSON.stringify({ok:false,code:'OWN_CLOSE_CONTRACT_INVALID',error:'No se verificó el resultado histórico contra todas sus fuentes guardadas.'}),{status:503}):original(url,options);
+ await h.start();
+ assert.match(h.q('status').textContent,/No se pudo verificar el padrón o las fuentes del cierre de .+\. El cierre sigue bloqueado\./);
+ assert.doesNotMatch(h.q('status').textContent,/resultado histórico/);
+ assert.equal(h.q('detail').hidden,true);assert.equal(h.q('unconfirmed').hidden,true);assert.equal(h.q('send').disabled,true);
+});
+
+test('returning to the tab reads the closing again by itself; while hidden nothing is shown',async t=>{
+ const h=harness(t);h.state.detail=closeDetail(2);await h.start();assert.equal(h.q('detail').hidden,false);
+ const before=h.requests.filter(r=>r.method==='GET').length;
+ h.hide();assert.equal(h.q('detail').hidden,true);assert.match(h.q('status').textContent,/Al volver se consultan de nuevo/);
+ h.show();await h.settled();
+ assert.ok(h.requests.filter(r=>r.method==='GET').length>before,'the same period is consulted again on return');
+ assert.equal(h.q('detail').hidden,false);assert.equal(h.requests.filter(r=>r.method==='POST').length,0);
+});

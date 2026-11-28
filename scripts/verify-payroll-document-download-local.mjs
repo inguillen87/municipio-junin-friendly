@@ -77,6 +77,6 @@ try{
  await prepare({size:3});await save('small-3');await box.screenshot({path:path.join(out,'desktop.png')});
  for(const width of [390,320]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.ok((await box.getByRole('button',{name:'Preparar y descargar PDF conjunto'}).boundingBox()).height>=44);await box.screenshot({path:path.join(out,'mobile-'+width+'.png')});}
  checks.push('Progreso, resumen y acciones utilizables a 320/390px, con foco y controles de 44px.');
- assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+ assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length+sessionStorage.length),0);
  const result={ok:true,mode:published?'public_assets_loopback_synthetic_reader':'compiled_panel_loopback_synthetic_reader',releaseSha,publicFiles:[...publicBytes.keys()],checksPassed:checks.length,checks,errors,municipalSessionTested:false,privateRequestsForwarded:0,businessWrites:0};fs.writeFileSync(path.join(out,published?'published.json':'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

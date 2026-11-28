@@ -1,0 +1,62 @@
+CREATE OR REPLACE FUNCTION public.native_employee_roster_projection_batch_v1(p jsonb)
+ RETURNS TABLE(contract_id uuid, data jsonb)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+ SET "TimeZone" TO 'UTC'
+AS $function$
+DECLARE
+ ctx jsonb; ten uuid; binding uuid; company bigint;
+ civil_day date := (statement_timestamp() AT TIME ZONE 'America/Argentina/Mendoza')::date;
+BEGIN
+ ctx:=public.native_employee_context_v1(p);
+ ten:=(ctx->>'tenantId')::uuid; binding:=(ctx->>'sourceBindingId')::uuid; company:=(ctx->>'sourceCompanyId')::bigint;
+ RETURN QUERY
+ WITH contracts AS MATERIALIZED (
+   SELECT c.id,c.person_id,c.legacy_legajo,c.legacy_company_id,c.status,c.start_date,c.end_date,
+          c.source_payload->'native' AS meta
+   FROM public.employment_contract c
+   WHERE c.tenant_id=ten AND c.legacy_company_id=company AND c.source_system='MUNICONTROL' AND c.source_batch_id IS NULL
+   ORDER BY c.id FOR SHARE OF c
+ ), identities AS MATERIALIZED (
+   SELECT i.id FROM public.person_identity i JOIN (SELECT DISTINCT c.person_id FROM contracts c) who ON who.person_id=i.id
+   ORDER BY i.id FOR SHARE OF i
+ ), targets AS MATERIALIZED (
+   SELECT c.*,i.id AS identity_id,n.id AS reg_id
+   FROM contracts c LEFT JOIN identities i ON i.id=c.person_id
+   LEFT JOIN public.native_employee_registration n ON n.contract_id=c.id AND n.person_id=c.person_id AND n.tenant_id=ten AND n.source_binding_id=binding
+ ), approved_lifecycle AS MATERIALIZED (
+   SELECT DISTINCT h.contract_id FROM public.native_employment_lifecycle_review h
+   WHERE h.tenant_id=ten AND h.source_binding_id=binding AND h.decision='approve'
+ ), classification AS MATERIALIZED (
+   SELECT t.*, (
+    t.identity_id IS NOT NULL AND t.reg_id IS NOT NULL AND t.meta->>'registrationId'=t.reg_id::text
+    AND (t.meta ? 'adoptionProposalId' OR t.meta ? 'adoptionReviewId')
+    AND a.registration_id=t.reg_id AND d.id IS NOT NULL AND r.id IS NOT NULL
+    AND t.meta->>'adoptionProposalId'=r.id::text AND t.meta->>'adoptionReviewId'=d.id::text
+    AND a.before_contract->>'person_id'=t.person_id::text AND a.before_contract->>'legacy_legajo'=t.legacy_legajo
+    AND a.before_contract->>'legacy_company_id'=t.legacy_company_id::text
+    AND hist.contract_id IS NULL
+   ) AS plain_adoption
+   FROM targets t
+   LEFT JOIN public.employment_adoption_application a ON a.contract_id=t.id
+   LEFT JOIN public.employment_adoption_decision d ON d.id=a.decision_id AND d.decision='approve'
+     AND d.tenant_id=ten AND d.source_binding_id=binding
+   LEFT JOIN public.employment_adoption_proposal r ON r.id=d.proposal_id AND r.tenant_id=ten AND r.source_binding_id=binding
+   LEFT JOIN approved_lifecycle hist ON hist.contract_id=t.id
+ ), projected AS MATERIALIZED (
+   SELECT t.id,
+    CASE WHEN t.plain_adoption IS TRUE THEN jsonb_build_object(
+      'startDate',to_char(t.start_date,'YYYY-MM-DD'),'endDate',to_char(t.end_date,'YYYY-MM-DD'),
+      'status',CASE WHEN t.status<>'active' THEN t.status WHEN t.start_date IS NULL THEN 'unknown'
+                    WHEN t.start_date>civil_day THEN 'pending_start' WHEN t.end_date<civil_day THEN 'inactive' ELSE 'active' END,
+      'recordKind','adopted')
+    -- Do not generalize absence, missing origin, a hire, or even a single
+    -- approved historical lifecycle event: use the original full scalar. It
+    -- preserves canonical errors and the full interval/today semantics.
+    ELSE public.native_employee_read_projection_v1(p,t.id)->'contract' END AS value
+   FROM classification t
+ )
+ SELECT x.id,jsonb_build_object('startDate',x.value->'startDate','endDate',x.value->'endDate',
+   'status',x.value->'status','recordKind',x.value->'recordKind') FROM projected x;
+END $function$

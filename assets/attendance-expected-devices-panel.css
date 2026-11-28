@@ -1,0 +1,63 @@
+/* The panel can be mounted in its scoped page without the global clock reader. */
+.aed{min-width:0;overflow-wrap:anywhere}
+.aed [hidden]{display:none!important}
+.aed header,.aed section,.aed fieldset,.aed form,.aed div{min-width:0}
+.aed fieldset{margin:0;padding:20px;border:1px solid var(--line,#d8e3e1);border-radius:12px;background:#fff}
+.aed legend{font-weight:750;padding:0 6px;font-size:18px}
+.aed label{display:flex;flex-direction:column;gap:7px;font-weight:650;font-size:14px;min-width:0}
+.aed input:not([type=checkbox]),.aed select,.aed textarea{width:100%;max-width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #a9c0bd;border-radius:8px;background:#fff;color:var(--ink,#183a3c);box-sizing:border-box}
+.aed textarea{resize:vertical}
+.aed-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.aed-stack{display:grid;gap:22px}
+.aed-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.aed button,.aed a{overflow-wrap:anywhere}
+.aed button{white-space:normal;max-width:100%}
+.aed-status{margin:0 0 20px;border-left:4px solid #14766e;padding:14px 16px;background:#eaf3f1;border-radius:6px}
+.aed-status[data-state=blocked],.aed-status[data-state=unavailable],.aed-status[data-state=uncertain]{border-color:#9c6815;background:#fff5df}
+.aed-status[data-state=success]{border-color:#14766e;background:#e6f4ec}
+.aed-status[data-state=denied]{border-color:#a83936;background:#fff0ee}
+.aed-note{color:var(--muted,#54696c);font-size:14px;line-height:1.5}
+.aed-boundary{padding:14px 18px;background:#eaf3f1;border:1px solid var(--line,#d8e3e1);border-left:4px solid #14766e;border-radius:10px;margin-bottom:24px}
+[data-aed-records]{display:grid;gap:14px;margin:16px 0}
+[data-aed-records]>.aed-note{padding:16px 18px;border:1px dashed #b9ceca;border-radius:10px;background:#f7fbfa;margin:0}
+.aed-card{border:1px solid var(--line,#d8e3e1);border-radius:12px;padding:18px;background:#fff;box-shadow:0 4px 14px rgba(15,41,64,.04)}
+.aed-card[data-status]{border-left:4px solid #14766e}
+.aed-card[data-status=proposed],.aed-card[data-status=pending]{border-left-color:#c98a18}
+.aed-card[data-status=approved]{border-left-color:#14766e}
+.aed-card[data-status=rejected]{border-left-color:#b42318}
+.aed-card[data-status=retired]{border-left-color:#64748b}
+.aed-card h3{margin:0 0 10px;color:#14383b}
+.aed-card h4{margin:14px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#466164}
+.aed-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:750;line-height:1.45;background:#eef2f1;color:#3d5559}
+.aed-badge[data-status=approved]{background:#e3f3ee;color:#0b5a51}
+.aed-badge[data-status=proposed],.aed-badge[data-status=pending]{background:#fff2d6;color:#6f4700}
+.aed-badge[data-status=rejected]{background:#fde4e1;color:#9b2215}
+.aed-badge[data-status=retired]{background:#edf1f3;color:#475d6b}
+.aed-facts{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,2fr);gap:8px 16px;margin:12px 0;padding:12px 14px;background:#f9fcfb;border:1px solid #e4eeec;border-radius:10px}
+.aed-facts dt{font-weight:700;font-size:13px;color:var(--muted,#54696c)}
+.aed-facts dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.aed :is(button,input,select,textarea,summary,a):focus-visible{outline:3px solid #0f766e;outline-offset:2px}
+.aed-list{display:grid;gap:10px;list-style:none;margin:12px 0 0;padding:0}
+.aed-list>li{padding:12px;border:1px solid var(--line,#d8e3e1);border-radius:8px;background:#fff;min-width:0}
+.aed .aed-check{display:flex;flex-direction:row;align-items:flex-start;gap:12px;font-weight:500;padding:10px 0;line-height:1.55}
+.aed .aed-check input{flex:0 0 20px;width:20px;height:20px;margin:2px 0 0;accent-color:#14766e}
+.aed-comparison{border:2px solid #14766e;background:#f5faf8;padding:20px;border-radius:12px}
+.aed-comparison h3{margin-top:0}
+.aed-timeline{padding-left:24px;display:grid;gap:14px}
+.aed-timeline li{padding-left:4px;min-width:0}
+.aed-timeline p{margin:4px 0}
+.aed details{border:1px solid var(--line,#d8e3e1);border-radius:10px;background:#fff;padding:18px}
+.aed summary{display:flex;align-items:center;min-height:44px;font-size:18px;font-weight:750;cursor:pointer}
+.aed [data-aed-receipt]{padding:18px;background:#e6f4ec;border:1px solid #9bc8b2;border-radius:10px}
+@media(max-width:640px){
+  .site-header{padding:16px;align-items:flex-start;flex-direction:column;gap:12px}
+  .site-header nav{gap:10px 18px;min-width:0;width:100%}
+  main{padding:24px 16px 48px}
+  h1{font-size:28px}
+  .aed-grid{grid-template-columns:minmax(0,1fr)}
+  .aed fieldset,.aed details,.aed-card,.aed-comparison{padding:14px}
+  .aed-facts{grid-template-columns:minmax(0,1fr);gap:3px}
+  .aed-facts dd{margin-bottom:9px}
+  .aed-actions{align-items:stretch;flex-direction:column}
+  .aed-actions button,.aed-actions a{width:100%}
+}

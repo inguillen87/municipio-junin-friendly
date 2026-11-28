@@ -1,7 +1,7 @@
 name: Own payroll complete imputation
 on:
   pull_request:
-    paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/migrations/150-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/migrations/150-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
   push:
     branches: ['master']
     paths: ['assets/own-payroll-imputation*', 'assets/payroll-navigation.js', 'api/internal-own-payroll-imputation.js', 'lib/internal-own-payroll-imputation.js', 'scripts/migrations/148-*', 'scripts/migrations/150-*', 'assets/own-payroll-accounting-model.js', 'scripts/*own-payroll-imputation*', 'scripts/*own-imputation*', 'scripts/lib/own-imputation-installation.mjs', 'scripts/lib/own-payroll-imputation-qa.mjs', 'tests/own-payroll-imputation*', 'tests/fixtures/own-payroll-imputation*', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/own-payroll-imputation.yml']
@@ -35,7 +35,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - name: Prepare isolated synthetic database and restricted runtime
         env:

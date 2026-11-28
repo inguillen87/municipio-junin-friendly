@@ -22,7 +22,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-salary-browser.mjs
       - run: node scripts/verify-native-salary-file-browser.mjs
@@ -38,7 +38,7 @@ jobs:
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

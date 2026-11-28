@@ -43,7 +43,7 @@ test('proposal rejects impossible dates, empty evidence, unknown keys and numeri
     { legalInstrument: '' }, { legalInstrument: '<acta>' }, { validFrom: '2026-02-30' }, { validTo: '2026-01-01' }, { validTo: '2101-01-01' }, { validFrom: null }];
   for (const patch of invalidValues) assert.throws(() => prepareFixedCommand('propose', propose({ values: fixedValues(patch) })), undefined, JSON.stringify(patch));
   for (const patch of [{ recordId: null, expectedVersion: 1 }, { recordId: uuid(4), expectedVersion: 0 }, { identityToken: '' }, { contractId: '1001' },
-    { legajo: '01001' }, { operation: 'annul', values: null }, { reason: null }, { reason: 'line\nbreak' }, { actorEmail: 'forged@example.invalid' }]) assert.throws(() => prepareFixedCommand('propose', propose(patch)));
+    { legajo: '01\n001' }, { operation: 'annul', values: null }, { reason: null }, { reason: 'line\nbreak' }, { actorEmail: 'forged@example.invalid' }]) assert.throws(() => prepareFixedCommand('propose', propose(patch)));
 });
 test('annulment and review demand exact version and explicit reason without removing original values', () => {
   const annul = propose({ recordId: uuid(4), expectedVersion: 2, operation: 'annul', values: null });

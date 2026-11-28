@@ -7,6 +7,9 @@ import {artDaysConfiguration} from './own-art-days-model.js';
 import {validCuil} from './native-employee-contract.js';
 export const OWN_ART_READ=Object.freeze([...new Set([...OWN_CLOSE_NOMINAL,'payroll.parameter.read'])]);
 export const OWN_ART_MAX_BYTES=32*1024*1024;
+// Un cierre con total oficial (V4/V5) guarda cada total de GRH con el código que el propio cierre conservó
+// (993 → 800000993). Los cierres anteriores, y un legajo sin total oficial, lo guardan con su código.
+export const ownClosedTotalCode=(employee,code)=>{const saved=employee?.totalReconciliation?.sourceTotals;return saved&&typeof saved==='object'&&Object.hasOwn(saved,code)&&typeof saved[code]==='string'?saved[code]:code;};
 const trustedSources=new WeakSet(),trusted=new WeakSet(),need=(v,m)=>{if(!v)throw Error(m);};
 const freeze=v=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 export function ownArtParams(v){need(salaryExact(v,['period','types']),'Elegí período y tipos completos.');const q=ownReportQuery({from:v.period,to:v.period,types:v.types});return {period:q.from,types:q.types};}
@@ -31,7 +34,7 @@ export function prepareOwnArtReport(source){
   }
   let jurisdiction;try{jurisdiction=ownClosedJurisdiction(e,g.snapshot.version).code;}catch{row.issues.push('Jurisdicción no documentada en el cierre original.');}if(jurisdiction&&!row.jurisdictions.includes(jurisdiction))row.jurisdictions.push(jurisdiction);
   row.sources.push({id:g.id,sha256:g.snapshotSha256,type:g.snapshot.liquidationType,runId:e.runId,liquidationVersion:e.liquidationVersion,contractId:e.contractId});
-  for(const code of ['993','995']){const lines=g.snapshot.concepts.filter(r=>r.contractId===e.contractId&&r.conceptCode===code);if(lines.length!==1||lines[0].unit!=='money'){row.issues.push('Falta un valor monetario único de '+code+' en '+g.snapshot.liquidationType+'.');continue;}try{const value=cents(lines[0].amount),key='concept'+code+'Cents';row[key]=(BigInt(row[key]??'0')+value).toString();row.financialCount++;}catch{row.issues.push('El valor '+code+' no tiene centavos exactos no negativos. No se redondea.');}}
+  for(const code of ['993','995']){const saved=ownClosedTotalCode(e,code),lines=g.snapshot.concepts.filter(r=>r.contractId===e.contractId&&r.conceptCode===saved);if(lines.length!==1||lines[0].unit!=='money'){row.issues.push('Falta un valor monetario único de '+code+' en '+g.snapshot.liquidationType+'.');continue;}try{const value=cents(lines[0].amount),key='concept'+code+'Cents';row[key]=(BigInt(row[key]??'0')+value).toString();row.financialCount++;}catch{row.issues.push('El valor '+code+' no tiene centavos exactos no negativos. No se redondea.');}}
  }
  const rows=[...agents.values()];const cuils=new Set(),dnis=new Set();
  for(const row of rows){if(typeof row.dni!=='string'||!/^\d{5,12}$/.test(row.dni)||typeof row.cuil!=='string'||!validCuil(row.cuil)||row.cuil.slice(2,10)!==row.dni.padStart(8,'0'))row.issues.push('DNI o CUIL faltante, inválido o incompatible.');if(!['F','M','X'].includes(row.sex))row.issues.push('Sexo sin informar en la identidad propia.');if(cuils.has(row.cuil)||dnis.has(row.dni))row.issues.push('Identidad duplicada entre agentes: no se unifica automáticamente.');cuils.add(row.cuil);dnis.add(row.dni);if(row.jurisdictions.length!==1)row.issues.push('El agente no tiene una jurisdicción única documentada.');if(row.financialCount===row.sources.length*2&&row.concept993Cents!==null&&row.concept995Cents!==null)row.salaryCents=(BigInt(row.concept993Cents)+BigInt(row.concept995Cents)).toString();row.issues=[...new Set(row.issues)];}

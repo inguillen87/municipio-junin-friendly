@@ -74,7 +74,7 @@ test('bootstrap preserves minimum capabilities, employment requirement and exact
   const b = fixedBootstrap(wrap(f.bootstrap())); assert.equal(b.principal.employmentLinked, false);
   assert.equal(b.principal.capabilities.includes('payroll.fixed.prepare'), false); assert.equal(b.limits.maxRecords, FIXED_MAX_ROWS);
   assert.equal(fixedPrincipalKey(b), [f.principal().tenantId, f.principal().membershipId, f.principal().certifiedBindingId].join(':'));
-  for (const change of [d => d.limits.maxRecords = 5000, d => d.effects.payrollCalculated = true, d => d.principal.capabilities.push(d.principal.capabilities[0]), d => d.extra = true]) {
+  for (const change of [d => d.limits.maxRecords = 500, d => d.effects.payrollCalculated = true, d => d.principal.capabilities.push(d.principal.capabilities[0]), d => d.extra = true]) {
     const d = structuredClone(f.bootstrap()); change(d); assert.throws(() => fixedBootstrap(wrap(d)));
   }
 });
@@ -106,7 +106,7 @@ test('list rejects truncation, duplicates, unexpected fields and inconsistent pe
   for (const change of [d => d.total++, d => d.rows.push(d.rows[0]), d => d.rows[0].extra = 'secret', d => d.effects.payrollPosted = true, d => d.periodMonth = null]) {
     const d = structuredClone(f.list('2026-09-01')); change(d); assert.throws(() => fixedList(wrap(d), '2026-09-01'));
   }
-  const tooMany = fixture(501); assert.throws(() => validated(tooMany));
+  const tooMany = fixture(5001); assert.throws(() => validated(tooMany));
   const out = fixture(1); out.state.records[0].latest.values.validFrom = '2027-01-01'; out.state.records[0].latest.values.validTo = null;
   const d = out.list(null); d.periodMonth = '2026-09-01'; assert.throws(() => fixedList(wrap(d), '2026-09-01'));
 });

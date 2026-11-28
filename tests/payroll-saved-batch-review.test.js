@@ -50,6 +50,6 @@ test('server refusal does not restore detail or run any action',async()=>{
 
 test('explicit saved-batch entry cannot consume a previous preparation handoff',()=>{
  const source=fs.readFileSync('assets/payroll-novelty-workbench.js','utf8');
- assert.match(source,/if \(!requestedMonthlyContract && !hasRequestedBatch\) consumePayrollNoveltyHandoff\(\)/);
- assert.match(source,/loadBootstrap\(\)\.then\(\(\)=> \{\s*if \(hasRequestedBatch\) return openRequestedBatch\(\)/);
+ assert.match(source,/const handoffRestored = !requestedMonthlyContract && !hasRequestedBatch && consumePayrollNoveltyHandoff\(\)/);
+ assert.match(source,/loadBootstrap\(\{ quiet: true \}\)\.then\(\(\)=> \{\s*if \(hasRequestedBatch\) return openRequestedBatch\(\)/);
 });

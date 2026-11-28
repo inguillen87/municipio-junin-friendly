@@ -232,8 +232,12 @@
     }
   </style>
   <script src="assets/internal-guide.js" defer></script>
+  <script type="module" src="assets/quality-charts.js"></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
+  <script src="assets/role-label.js"></script>
 </head>
 <body data-mc-page="quality">
   <a class="skip-link" href="#mainContent">Saltar al contenido</a>
@@ -305,9 +309,9 @@
       <main id="mainContent" hidden>
         <header class="page-head">
           <div>
-            <p class="eyebrow">Incidencias, controles y trazabilidad</p>
+            <p class="eyebrow">Reportes y control · calidad de los datos</p>
             <h1>Calidad operativa de datos</h1>
-            <p class="lead">Revisá qué controles están materializados, dónde existen incidencias y qué lote respalda cada resultado. Esta vista no calcula un puntaje de salud ni reemplaza el análisis de cada fuente.</p>
+            <p class="lead">Mirá qué controles se hicieron sobre los datos, dónde aparecieron problemas y de qué carga viene cada resultado. No se resume en una nota general: cada problema se revisa en su fuente.</p>
           </div>
           <div class="status-panel" id="overallPanel" data-state="warning">
             <strong id="overallTitle">Consultando cobertura</strong>
@@ -320,8 +324,9 @@
           <div><strong>PERSONAS: 0 controles materializados no equivale a calidad perfecta</strong><p>Significa que todavía no hay controles persistidos que permitan afirmarlo. Un cero debe leerse junto con la cobertura, el lote y la fecha de corte.</p></div>
         </div>
 
+        <div data-mc-tabs='[{"id":"resumen","label":"Resumen","hint":"Cuántos problemas hay","sel":"#summaryPanel,#domainsPanel"},{"id":"incidencias","label":"Problemas a revisar","hint":"Lista con filtros","sel":"#issuesPanel"},{"id":"fuentes","label":"Fuentes y alcance","hint":"De dónde vienen los datos","sel":"#lineagePanel,#caveatsPanel"}]' data-mc-tabs-key="mc.calidad-operativa.tab" data-mc-tabs-label="Secciones de Calidad operativa"></div>
         <section class="section" id="summaryPanel" aria-labelledby="summaryTitle">
-          <div class="section-head"><div><span class="section-index">01 · Resumen</span><h2 id="summaryTitle">Incidencias registradas</h2><p>Conteos observables; no se convierten en un indicador sintético de salud.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">01 · Resumen</span><h2 id="summaryTitle">Problemas encontrados</h2><p>Cantidades tal como se detectaron. No se resumen en una nota o puntaje general.</p></div><span class="state-badge" id="summaryBadge">Consultando</span></div>
           <div class="kpi-grid">
             <article class="kpi"><span class="kpi-label">Registradas</span><strong class="kpi-value" id="registeredValue">—</strong><span class="kpi-note">Total informado por el control materializado.</span></article>
             <article class="kpi"><span class="kpi-label">Abiertas</span><strong class="kpi-value" id="openValue">—</strong><span class="kpi-note">Pendientes de aceptación, corrección o rechazo.</span></article>
@@ -331,12 +336,12 @@
         </section>
 
         <section class="section" id="domainsPanel" aria-labelledby="domainsTitle">
-          <div class="section-head"><div><span class="section-index">02 · Controles</span><h2 id="domainsTitle">Controles por dominio</h2><p>Separación explícita entre cobertura materializada e incidencias detectadas.</p></div><span class="state-badge" id="domainsBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">02 · Controles</span><h2 id="domainsTitle">Controles por tema</h2><p>Para cada tema se muestra cuántos controles se hicieron y cuántos problemas aparecieron.</p></div><span class="state-badge" id="domainsBadge">Consultando</span></div>
           <div class="domain-grid" id="domainGrid"></div>
         </section>
 
         <section class="section" id="lineagePanel" aria-labelledby="lineageTitle">
-          <div class="section-head"><div><span class="section-index">03 · Linaje</span><h2 id="lineageTitle">Fuentes e importaciones</h2><p>Cada lote conserva sistema de origen, corte, validación y cantidad de filas cuando la fuente la informa.</p></div><span class="state-badge" id="lineageBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">03 · Linaje</span><h2 id="lineageTitle">De dónde vienen los datos</h2><p>Cada carga conserva el sistema de origen, la fecha, si fue validada y la cantidad de filas cuando la fuente la informa.</p></div><span class="state-badge" id="lineageBadge">Consultando</span></div>
           <div class="source-grid">
             <article class="panel">
               <h3>Lotes registrados</h3>
@@ -365,7 +370,7 @@
         </section>
 
         <section class="section" id="issuesPanel" aria-labelledby="issuesTitle">
-          <div class="section-head"><div><span class="section-index">04 · Bandeja</span><h2 id="issuesTitle">Incidencias de calidad</h2><p>Detalle operativo sin nombres, DNI, CUIL, identificadores personales ni valores observados.</p></div><span class="state-badge" id="issuesBadge">Consultando</span></div>
+          <div class="section-head"><div><span class="section-index">04 · Bandeja</span><h2 id="issuesTitle">Lista de problemas</h2><p>Detalle para corregir, sin nombres, DNI, CUIL, identificadores personales ni valores observados.</p></div><span class="state-badge" id="issuesBadge">Consultando</span></div>
           <form class="filter-panel" id="filterForm">
             <div class="filter-grid">
               <div class="field"><label for="severitySelect">Severidad</label><select id="severitySelect" name="severity"><option value="">Todas</option><option value="critical">Crítica</option><option value="error">Error</option><option value="warning">Advertencia</option><option value="info">Información</option></select></div>
@@ -394,7 +399,7 @@
         </section>
 
         <section class="section" id="caveatsPanel" aria-labelledby="caveatsTitle">
-          <div class="section-head"><div><span class="section-index">05 · Límites</span><h2 id="caveatsTitle">Corte, alcance y salvedades</h2><p>Condiciones que deben acompañar cualquier conclusión sobre calidad.</p></div><span class="state-badge warning">Lectura obligatoria</span></div>
+          <div class="section-head"><div><span class="section-index">05 · Límites</span><h2 id="caveatsTitle">Fecha de los datos y advertencias</h2><p>Condiciones que hay que tener en cuenta antes de sacar conclusiones sobre la calidad.</p></div><span class="state-badge warning">Lectura obligatoria</span></div>
           <div class="source-grid">
             <article class="panel"><h3>Salvedades informadas</h3><ul class="caveat-list" id="caveatList"></ul></article>
             <article class="panel"><h3>Continuar el análisis</h3><p class="panel-note">Abrí el dominio responsable sin perder el contexto de lectura.</p><dl class="definition-list"><div><dt>Identidad y crosswalk</dt><dd><a href="integracion-datos.html#identityTitle">Integración</a></dd></div><div><dt>Coherencia laboral</dt><dd><a href="nomina-control.html">Nómina</a></dd></div><div><dt>Ficha y contexto</dt><dd><a href="internal-dashboard.html#legajos">Personas</a></dd></div></dl></article>
@@ -956,6 +961,8 @@
           return;
         }
         renderOverview(overview);
+        window.__mcQuality = { overview: overview, raw: settled[0].status === 'fulfilled' ? settled[0].value : null };
+        if (window.MuniControlQualityCharts) window.MuniControlQualityCharts.render(window.__mcQuality);
         renderIssues(issues);
         renderLineage(lineage);
         renderCaveats(overview, issues, lineage, failures);
@@ -971,7 +978,7 @@
           if (redirectIssued) return;
           var user = normalizeUser(payload);
           setText('userName', user.name);
-          setText('userRole', user.role);
+          setText('userRole', (window.MuniControlRoleLabel || function (value) { return value; })(user.role));
           authenticated = true;
           await loadData();
         } catch (error) {

@@ -2,6 +2,9 @@ name: Own period classification
 on:
   pull_request:
     paths:
+      - 'assets/own-payroll-receipt-model.js'
+      - 'assets/own-payroll-pdf-kit.js'
+      - 'assets/own-payroll-receipt-pdf.js'
       - 'api/internal-own-period-classification.js'
       - 'lib/internal-own-period-classification.js'
       - 'assets/own-period-classification*'
@@ -23,6 +26,8 @@ on:
       - 'scripts/lib/own-payroll-durable-qa.mjs'
       - 'scripts/lib/noelia-circuit-runtime.mjs'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'tests/own-period-classification*'
       - 'tests/own-payroll-period-classification*'
       - 'tests/own-payroll-jurisdiction.test.js'
@@ -56,6 +61,8 @@ on:
       - 'scripts/lib/own-payroll-durable-qa.mjs'
       - 'scripts/lib/noelia-circuit-runtime.mjs'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'tests/own-period-classification*'
       - 'tests/own-payroll-period-classification*'
       - 'tests/own-payroll-jurisdiction.test.js'
@@ -97,7 +104,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - name: Prepare disposable synthetic PostgreSQL
         env:

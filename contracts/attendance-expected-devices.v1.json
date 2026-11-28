@@ -1,0 +1,37 @@
+{
+  "version": "attendance-expected-devices.v1",
+  "commandVersion": "attendance-expected-devices-command.v1",
+  "page": "/asistencia-dispositivos",
+  "api": "/api/internal-attendance-expected-devices",
+  "authority": {
+    "read": "attendance.area.read",
+    "propose": "attendance.area.devices.propose",
+    "decide": "attendance.area.devices.approve",
+    "audit": "attendance.area.devices.audit.read",
+    "scope": "explicit tenant, binding, membership, action, organization and exact nullable sector",
+    "inheritedLeaveAuthority": false,
+    "globalAttendanceRequired": false,
+    "automaticGrants": false,
+    "makerChecker": "different verified person and membership"
+  },
+  "readResources": ["bootstrap", "choices", "list", "detail", "attempt"],
+  "commands": ["propose", "approve", "reject", "retire"],
+  "definition": {
+    "contractId": "UUID proven by historical membership",
+    "area": ["organizationUnitSourceId", "sectorSourceId"],
+    "validity": "explicit inclusive validFrom/validUntil; no default dates",
+    "deviceIds": "explicit nonempty exhaustive declaration from inventory022",
+    "complete": "declared completeness for this contract's devices, not area-population or period coverage",
+    "subjectVersion": "SHA-256 of the complete stable history result in PostgreSQL jsonb text",
+    "deviceCatalogVersion": "fresh complete authorized inventory version"
+  },
+  "history": "immutable proposal, independent decision and explicitly dated retirement; earlier validity retained",
+  "labels": "area/sector from authorized catalogue, contract from proved canonical identity, devices from technical inventory",
+  "partialPopulation": "proved individual members may be declared while whole-area conclusions remain blocked",
+  "recovery": "same body, key, verified person, membership, tenant, binding, session and scope; no uncertain retry under another identity",
+  "technicalLimits": {"selectedDevices": 100, "deviceCatalog": 1000, "populationCandidates": 2000, "rangeDayDifference": 366, "pageSize": 100, "commandBytes": 32768},
+  "coverageCertified": false,
+  "payrollPosted": false,
+  "installationReady": false,
+  "NoeliaReady": false
+}

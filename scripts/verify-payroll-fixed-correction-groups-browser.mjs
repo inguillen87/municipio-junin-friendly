@@ -1,3 +1,4 @@
+import {openFixedNovelties} from './lib/novelty-reference-browser.mjs';
 /** Compiled application, synthetic API only. No municipal reads or writes. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,7 +37,7 @@ try{
  page=await context.newPage();page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
  const host=page.locator('[data-fixed-host]'),s=name=>{const [key,...pseudo]=name.split(':');return host.locator('[data-fn-'+key+']'+(pseudo.length?':'+pseudo.join(':'):''));};
  const refresh=async()=>{await s('refresh').click();await s('refresh:enabled').waitFor();};
- const open=async()=>{await page.goto(origin+'/novedades-nomina.html');await page.locator('#fixedNovelties > summary').click();await s('new:enabled').waitFor();};
+ const open=async()=>{await page.goto(origin+'/novedades-nomina.html');await openFixedNovelties(page);await s('new:enabled').waitFor();};
  const chooseAll=async()=>{await s('group-select').click();await s('group-correct:enabled').waitFor();};
  const review=async()=>{await s('group-correct').click();await s('group-reason').waitFor();await s('group-reason').fill('Corrección conjunta documentada de ensayo');assert.equal(await s('save').isDisabled(),true);await host.locator('[data-fn-group-change=conceptSourceId]').check();await host.locator('[data-fn-group-value=conceptSourceId]').fill('614');await s('group-preview').click();await s('group-reviewed').check();await s('save:enabled').waitFor();};
  const reset=async()=>{resetFixture();await open();};

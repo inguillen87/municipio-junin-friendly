@@ -18,15 +18,21 @@ function render(meta){
 function selected(){
  const select=document.getElementById('statusFilter'),root=document.getElementById('workforceWorkspace');if(!select||!root)return;
  root.querySelectorAll('[data-workforce-status]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.workforceStatus===select.value)));
- document.getElementById('workforceSelection').textContent='Vista: '+(labels[select.value]||'Situación seleccionada')+'. Los indicadores corresponden al padrón completo; la búsqueda y los filtros acotan la tabla.';
+ document.getElementById('workforceSelection').textContent='Vista: '+(labels[select.value]||'Situación seleccionada')+'. Los indicadores corresponden al archivo completo de esta consulta; la búsqueda y los filtros acotan la tabla.';
 }
 function init(){
  const root=document.getElementById('workforceWorkspace');if(!root)return;
- root.addEventListener('click',event=>{const button=event.target.closest('[data-workforce-status]');if(!button)return;const select=document.getElementById('statusFilter');select.value=button.dataset.workforceStatus;select.dispatchEvent(new Event('change',{bubbles:true}));selected()});
+ root.addEventListener('click',event=>{const button=event.target.closest('[data-workforce-status]');if(!button)return;const select=document.getElementById('statusFilter');select.value=button.dataset.workforceStatus;selected();document.getElementById('employeeFilters').requestSubmit()});
  document.getElementById('statusFilter').addEventListener('change',selected);
  document.getElementById('clearFilters').addEventListener('click',()=>queueMicrotask(selected));
  selected();
 }
 window.addEventListener('municontrol:workforce-scope',event=>render(event.detail));
-window.addEventListener('municontrol:workforce-reset',()=>render({}));
+window.addEventListener('municontrol:workforce-reset',()=>{
+ render({});
+ const source=document.getElementById('workforceSource');
+ if(source)source.textContent='Indicadores retirados: la consulta no está disponible o dejó de estar vigente. Esto no confirma que falten registros ni fechas. Consultá de nuevo para verificarlos.';
+ const closed=document.getElementById('workforceClosedLabel');if(closed)closed.textContent='Referencia de cierre por verificar en una consulta completa.';
+ const multiple=document.getElementById('workforceMultipleLabel');if(multiple)multiple.textContent='Cantidad de personas y legajos por verificar.';
+});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();

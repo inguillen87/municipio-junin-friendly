@@ -101,7 +101,7 @@ test('Hugo ve revisión y decisión sin accesos de preparación inventados', () 
   assert.equal(model.mode, 'decide');
   assert.equal(model.title, 'Revisar y decidir');
   assert.equal(model.eyebrow, 'Mi trabajo hoy');
-  assert.deepEqual(Array.from(cardKeys(model)), ['actions', 'novelties', 'payroll']);
+  assert.deepEqual(Array.from(cardKeys(model)), ['actions', 'novelties', 'payroll', 'approvals']);
   assert.ok(model.cards.every((card) => /Revisar/.test(card.action)));
   assert.doesNotMatch(JSON.stringify(model.cards), /Preparar/);
 });

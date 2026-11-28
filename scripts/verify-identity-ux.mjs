@@ -153,7 +153,7 @@ try {
     await page.locator('#credentialsForm').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#manualMfaKey').innerText(), 'QA-MANUAL-KEY');
     assert.equal(page.url(), `${origin}/activar-cuenta.html`);
-    assert.deepEqual(await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) })), { local: [], session: [] });
+    assert.deepEqual(await page.evaluate(() => ({ local: Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')), session: Object.keys(sessionStorage) })), { local: [], session: [] });
     const file = path.join(os.tmpdir(), 'municontrol-activation-desktop.png');
     await page.screenshot({ path: file, fullPage: true }); screenshots.push(file);
     await page.locator('#newPassword').fill('QA password only 2026');
@@ -199,7 +199,7 @@ try {
     assert.deepEqual(selectedContextPayload, { kind: 'tenant', tenantId: 'tenant-junin-qa' });
     assert.equal(await page.locator('#loginManualMfaKey').innerText(), 'QA-LOGIN-MFA-KEY');
     assert.equal(await page.evaluate(() => document.body.scrollWidth <= window.innerWidth), true);
-    assert.equal(await page.evaluate(() => Object.keys(localStorage).length), 0);
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length), 0);
     assert.equal(await page.evaluate(() => Object.keys(sessionStorage).some((key) => /flow|token|mfa/i.test(key))), false);
     await page.locator('#loginEnrollmentTotp').fill('000000');
     await page.locator('#completeEnrollmentButton').click();

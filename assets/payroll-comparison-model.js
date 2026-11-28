@@ -141,8 +141,8 @@ export function comparisonDocument(model, filter = {}) {
   if (model.nonClosed) warnings.push('Alguna fuente no informa cierre: comparación de consulta, no liquidación certificada.');
   return { title: 'Comparación de liquidaciones', filename: `municontrol_comparacion_${civilDate(a.date)}_${civilDate(b.date)}_${a.type.toLowerCase()}_${a.datasetId.slice(0, 8)}_${b.datasetId.slice(0, 8)}`,
     columns: [{ label: 'Código', type: 'text', width: 10 }, { label: 'Concepto', type: 'text', width: 37 },
-      { label: 'Base', type: 'money', width: 22 }, { label: 'Comparada', type: 'money', width: 22 },
-      { label: 'Diferencia', type: 'money', width: 22 }, { label: 'Variación %', type: 'text', width: 20 },
+      { label: 'Base', type: 'money', width: 22, align: 'right' }, { label: 'Comparada', type: 'money', width: 22, align: 'right' },
+      { label: 'Diferencia', type: 'money', width: 22, align: 'right' }, { label: 'Variación %', type: 'text', width: 20 },
       { label: 'Legajos base / comparada', type: 'text', width: 18 }, { label: 'Estado', type: 'text', width: 33 }],
     rows: view.rows.map(row => [row.code, row.description, row.baseAmount, row.targetAmount, row.delta, row.percent,
       `${row.baseCount ?? 'No figura'} / ${row.targetCount ?? 'No figura'}`, (row.totalizer ? 'Totalizador. ' : '') + row.state]),

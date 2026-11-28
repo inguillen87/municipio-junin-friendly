@@ -1,5 +1,6 @@
 // Existing loopback PostgreSQL QA only. Every actor and employee is synthetic.
 import fs from 'node:fs';
+import {installSqlBusyRetry} from '../lib/sql-busy-retry.js';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {randomUUID,createHash} from 'node:crypto';
@@ -72,6 +73,8 @@ export async function verifyOwnContractSalaryConditions(options){
    assert.match(query,/^SELECT public\.own_salary_conditions_(?:bootstrap|detail|attempt|command)_v1\([\s\S]+\) AS result$/);
    return[{result:await db.run(query.replaceAll('public.',qa.schema+'.').replace(/\$(\d+)/g,(_,n)=>{assert.ok(Number(n)>0&&Number(n)<=values.length);return q(values[Number(n)-1]);}),true)}];
   }};
+  // Igual que en producción: una consulta que encuentra el candado ocupado se repite sola.
+  installSqlBusyRetry(conditionsAdapter);
   // Advertise exactly the current disposable actor's actual SQL rights. A
   // revoked right must fail in both the HTTP gateway and the SQL facade.
   handlers.salaryConditions=createOwnContractSalaryConditionsHandler({...deps,getSql:()=>conditionsAdapter,requireAccess:async(...args)=>{

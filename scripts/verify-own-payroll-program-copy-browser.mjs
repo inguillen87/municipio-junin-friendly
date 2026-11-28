@@ -45,7 +45,7 @@ const server=http.createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin='http://127.0.0.1:'+server.address().port;
 try {
- browser=await chromium.launch({...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ browser=await chromium.launch({...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:opts.browser==='chrome'?{channel:'chrome'}:{}),headless:true});const context=await browser.newContext({viewport:{width:1440,height:960}}),page=await context.newPage();/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});page.on('pageerror',e=>errors.push(e.message));
  const $=key=>page.locator('[data-program-'+key+']');
  const settled=()=>page.waitForFunction(()=>document.querySelector('.own-program')?.getAttribute('aria-busy')==='false');
  const load=async()=>{await page.goto(origin+'/qa.html');await $('content').waitFor({state:'visible'});await settled();await $('copy').locator('summary').click();};
@@ -55,7 +55,7 @@ try {
  };
  const preview=async()=>{await $('copy-preview').click();await settled();await $('copy-review').waitFor({state:'visible'});};
  boot=structuredClone(historical.boot);await load();await configure(['2']);await preview();await $('copy-confirm').check();await $('copy-apply').click();await settled();await $('reason').fill('Intento sintético de copiar una política histórica');await $('prepare').click();
- check(posts.length===0&&await $('rule-select').locator('option').count()===2&&(await $('status').innerText()).includes('resultado exacto'),'new copy of historical rounding is rejected without sending or losing either draft rule');
+ check(posts.length===0&&await $('rule-select').locator('option').count()===2&&(await $('status').innerText()).includes('debe ser exacta en todas las etapas o declarar el redondeo municipal a centavos'),'new copy of historical rounding is rejected without sending or losing either draft rule');
  boot=structuredClone(fixture.boot);await load();await configure();await preview();
  check(await $('copy-comparison').locator('tbody tr').count()===62,'review includes source and every one of 61 targets without pagination loss');
  check(posts.length===0&&await $('copy-apply').isDisabled(),'review sends no writes and requires explicit confirmation');

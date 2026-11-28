@@ -13,6 +13,8 @@ on:
       - 'novedades-nomina.html'
       - 'sw.js'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - 'scripts/verify-employee-picker*'
       - 'tests/employee-picker*'
 permissions:

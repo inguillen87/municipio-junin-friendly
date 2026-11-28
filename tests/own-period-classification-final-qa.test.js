@@ -106,7 +106,7 @@ test('canonical capacity160 reproduces the exact items precursor before166 with 
 
 test('synthetic adapter retains the original SQL transport cause while the actual HTTP handler keeps it private',async()=>{
  const recorded=[],message='ERROR: PAYROLL_FIXED_JURISDICTION_REQUIRED',stderr=message+'\nCONTEXT: synthetic adopted_subject -> range_v2 -> conditions_source',failure=new Error(message,{cause:{stderr}});
- const fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async()=>{throw failure;}},onSqlError:value=>recorded.push(value)});
+ const fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,major:17,db:{run:async()=>{throw failure;}},onSqlError:value=>recorded.push(value)});
  const response=await fixture.api('salaryConditions',{query:{resource:'bootstrap',period:'2026-09'},expected:503});assert.equal(response.code,'SALARY_CONDITIONS_UNAVAILABLE');assert.equal(response.ok,false);assert.ok(!JSON.stringify(response).includes('PAYROLL_FIXED_JURISDICTION_REQUIRED'));
  assert.equal(recorded.length,1);assert.deepEqual(Object.keys(recorded[0]).sort(),['functionName','message','querySha256','stderr','version']);assert.equal(recorded[0].functionName,'own_salary_conditions_bootstrap_v1');assert.equal(recorded[0].message,message);assert.equal(recorded[0].stderr,stderr);assert.match(recorded[0].querySha256,/^[a-f0-9]{64}$/);assert.ok(!JSON.stringify(recorded[0]).includes(blueprint.qa.actors.maker.actorEmail));
  await assert.rejects(fixture.api('salaryConditions',{query:{resource:'bootstrap',period:'2026-09'}}),/Synthetic fixture SQL cause: ERROR: PAYROLL_FIXED_JURISDICTION_REQUIRED/);
@@ -152,10 +152,10 @@ test('receipt preview refuses generic503, mappedBUSY, foreign relations and othe
 
 test('only the exact preview adapter gets client verbosity; commands and other reads remain single attempts',async()=>{
  for(const query of ['SELECT public.own_receipt_command_v1($1::jsonb,$2::jsonb,$3::uuid) AS result','SELECT public.own_receipt_batch_v1($1::jsonb,$2::uuid) AS result','SELECT public.own_run_capture_v1($1::jsonb,$2::jsonb,$3::uuid,$4::text) AS result']){
-  const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async sql=>{calls.push(sql);throw failure;}},onSqlError:e=>errors.push(e),read});
+  const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,major:17,db:{run:async sql=>{calls.push(sql);throw failure;}},onSqlError:e=>errors.push(e),read});
   await assert.rejects(fixture.adapter.query(query,['{}','{}',blueprint.qa.ids.makerContract,'fixture']),error=>error===failure);assert.equal(calls.length,1);assert.equal(errors.length,1);assert.ok(!calls[0].includes('\\set'));assert.deepEqual(fixture.receiptPreviewReadProof(),{requests:0,attempts:0,retries:0,maxAttempts:3,maxObservedAttempts:0});
  }
- const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,db:{run:async(sql,runtime)=>{assert.equal(runtime,true);calls.push(sql);if(calls.length===1)throw failure;return{read:true};}},onSqlError:e=>errors.push(e),read}),values=[JSON.stringify(blueprint.qa.actors.maker),JSON.stringify({fixture:'unchanged request'})];
+ const calls=[],errors=[],failure=previewLockFailure(),fixture=makeFinalClassificationQaHandlers({qa:blueprint.qa,major:17,db:{run:async(sql,runtime)=>{assert.equal(runtime,true);calls.push(sql);if(calls.length===1)throw failure;return{read:true};}},onSqlError:e=>errors.push(e),read}),values=[JSON.stringify(blueprint.qa.actors.maker),JSON.stringify({fixture:'unchanged request'})];
  assert.deepEqual(await fixture.adapter.query('SELECT public.own_receipt_preview_v1($1::jsonb,$2::jsonb) AS result',values),[{result:{read:true}}]);assert.equal(calls.length,2);assert.equal(calls[0],calls[1]);assert.equal(errors.length,1);assert.deepEqual(fixture.receiptPreviewReadProof(),{requests:1,attempts:2,retries:1,maxAttempts:3,maxObservedAttempts:2});
 });
 

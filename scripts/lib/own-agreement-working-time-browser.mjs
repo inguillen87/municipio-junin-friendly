@@ -82,7 +82,7 @@ export async function verifyAgreementWorkingTimeBrowser({handlers,env,actors,set
   origin='http://127.0.0.1:'+server.address().port;env.INTERNAL_APP_ORIGIN=origin;
   const {browser}=await launchOwnSyntheticBrowser();
   try {
-    const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});
+    const context=await browser.newContext({viewport:{width:1440,height:1100},locale:'es-AR',serviceWorkers:'block'});/* Reglas: formulario completo a la vista («Ver todo junto»); el paso a paso se verifica aparte. */await context.addInitScript(()=>{try{localStorage.setItem('mc.nomina.reglas.paso','todo')}catch{}});
     await context.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());
     page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
     page.on('request',request=>{try{const observed=observeAgreementQaPost(request,origin);if(observed)observedPosts.push(observed);}catch(error){errors.push('HTTP QA observation: '+error.message);}});
@@ -128,6 +128,8 @@ export async function verifyAgreementWorkingTimeBrowser({handlers,env,actors,set
     check(true,'independent actual SQL reviewer opens and approves the whole unchanged proposal through the built UI');
     await actor(actors.maker);await fresh();await consult();assert.deepEqual((await bootstrap()).configuration.items,changed);await panel.screenshot({path:path.join(output,'agreement-hours-desktop.png')});
     await inFlight.drain();await page.goto(origin+'/nomina#reglas');await page.locator('[data-program-content]').waitFor({state:'visible'});await inFlight.drain();
+    /* A pending proposal opens its review by itself; the maker goes back to the form explicitly. */
+    if(await page.locator('[data-program-form]').isHidden()){await page.locator('[data-program-edit-tab]').click();await page.locator('[data-program-form]').waitFor({state:'visible'});}
     const agreementFlag=page.locator('[data-program-agreement-time]');assert.ok(await agreementFlag.isChecked());assert.ok(await agreementFlag.isDisabled());
     await page.locator('[data-program-add-binding]').click();
     await page.locator('[data-program-field=binding-source]').selectOption('agreement_time_fact');

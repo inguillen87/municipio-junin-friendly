@@ -1,0 +1,191 @@
+{
+  "version": "municontrol-install-composition-derived.v1",
+  "name": "attendance-expected-devices",
+  "installable": false,
+  "dryRun": true,
+  "committed": false,
+  "requiresCodexReviewedCommit": true,
+  "source": {
+    "path": "scripts/candidates/attendance-expected-devices-v1.source.sql.txt",
+    "bytes": 53594,
+    "sha256": "1295451be04317d807ba8bb7711b0d292677d859458217b682eb8ef021b208b6"
+  },
+  "sourceManifest": {
+    "path": "scripts/candidates/attendance-expected-devices-v1.source.manifest.json",
+    "sha256": "054e4269a431c2605be2c6337bec225cf6101e052eec9de3bbc8b654d4882641"
+  },
+  "attestation": {
+    "path": "scripts/candidates/install-composition-attestation-v1.json",
+    "sha256": "f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695",
+    "complete": false
+  },
+  "removed": {
+    "barrierSha256": "21fa5d04817d5f4c4bf1ba4ca040b0dfdd102a91d10171c7d6f499df7ac878d3",
+    "rollbackSha256": "3c41bb5fdf19c0e14c34a58b7dd7ee6c6a1ee9fb70b77b5ce0fe2788a689c8a8"
+  },
+  "preserved": {
+    "prefixSha256": "5c43076b7a11d73ad05e840c3341614c4d43c3273f953ad7e9eaae6c14dc0bb1",
+    "bodySha256": "0c4a6df65f1352c6136f481985703c9f7a89aeee0e46e043b09ab3715421e76f",
+    "originalStatementsBytePreserved": true
+  },
+  "preimages": {
+    "functions": [
+      {
+        "signature": "public.attendance_area_context_v1(jsonb,text)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "attendance_area_context_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "attendance_area_assert_scope_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.attendance_area_history_v1(jsonb,uuid,date,date)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "attendance_area_history_v1",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.time_catalog_native_actor_v2(uuid,uuid,uuid)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "time_catalog_native_actor_v2",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      }
+    ],
+    "triggers": [],
+    "newFunctions": [
+      {
+        "name": "attendance_expected_devices_immutable_v1",
+        "signature": "public.attendance_expected_devices_immutable_v1()",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_hash_v1",
+        "signature": "public.attendance_expected_devices_hash_v1(jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_exact_v1",
+        "signature": "public.attendance_expected_devices_exact_v1(jsonb,text[])",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_date_v1",
+        "signature": "public.attendance_expected_devices_date_v1(jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_area_v1",
+        "signature": "public.attendance_expected_devices_area_v1(jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_scope_matches_v1",
+        "signature": "public.attendance_expected_devices_scope_matches_v1(jsonb,jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_base_v1",
+        "signature": "public.attendance_expected_devices_base_v1(jsonb,jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_catalog_v1",
+        "signature": "public.attendance_expected_devices_catalog_v1(jsonb,boolean)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_subject_v1",
+        "signature": "public.attendance_expected_devices_subject_v1(jsonb,uuid,jsonb,date,date)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_population_v1",
+        "signature": "public.attendance_area_population_v1(jsonb,jsonb,date,date)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_proposal_hash_v1",
+        "signature": "public.attendance_expected_devices_proposal_hash_v1(public.attendance_expected_device_proposal)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_record_v1",
+        "signature": "public.attendance_expected_devices_record_v1(jsonb,jsonb,public.attendance_expected_device_proposal)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_replay_v1",
+        "signature": "public.attendance_expected_devices_replay_v1(jsonb,jsonb,uuid,text)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_read_v1",
+        "signature": "public.attendance_expected_devices_read_v1(jsonb,jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_command_v1",
+        "signature": "public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_expected_devices_effective_v1",
+        "signature": "public.attendance_expected_devices_effective_v1(jsonb,uuid,date)",
+        "redefined": false
+      }
+    ]
+  },
+  "runtimeGrants": [
+    "public.attendance_expected_devices_read_v1(jsonb,jsonb)",
+    "public.attendance_expected_devices_command_v1(jsonb,jsonb,uuid)"
+  ],
+  "output": {
+    "path": "scripts/candidates/attendance-expected-devices-v1.derived.sql.txt",
+    "bytes": 61828,
+    "sha256": "9100ddef82df438bd15f846f63ee1e773ccc68741ac99b1473c6ca263500a0ae"
+  }
+}

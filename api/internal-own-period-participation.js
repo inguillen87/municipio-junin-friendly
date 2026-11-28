@@ -29,6 +29,7 @@ export function createOwnPeriodParticipationHandler(deps = {}) {
     if (schoolCertificateHttp.header(req, 'content-type').split(';')[0].trim().toLowerCase() !== 'application/json') participationFail('CONTENT_TYPE', 415, 'Se requiere un formulario JSON.');
     schoolCertificateHttp.checkLength(req, PARTICIPATION_MAX_BYTES);
    } else if (q.resource === 'bootstrap' && Object.keys(q).sort().join('|') === 'contractId|period|resource') { operation = 'bootstrap'; input = { contractId: q.contractId, period: q.period }; }
+   else if (q.resource === 'pending' && Object.keys(q).sort().join('|') === 'period|resource') { operation = 'pending'; input = { period: q.period }; }
    else if (q.resource === 'detail' && Object.keys(q).sort().join('|') === 'id|resource') { operation = 'detail'; input = { id: q.id }; }
    else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
    else participationFail('QUERY_INVALID', 400, 'Consulta inválida.');

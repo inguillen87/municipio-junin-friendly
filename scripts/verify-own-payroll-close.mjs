@@ -9,7 +9,7 @@ import {ownCloseOperation,OWN_CLOSE_WRITE} from '../lib/internal-own-payroll-clo
 import {ownCloseSnapshot} from '../assets/own-payroll-close-model.js';
 const root=path.resolve(import.meta.dirname,'..'),execute=promisify(execFile),args={};for(const a of process.argv.slice(2)){const m=/^--(major|psql|output)=(.+)$/.exec(a);assert.ok(m);assert.equal(args[m[1]],undefined);args[m[1]]=m[2];}
 const major=Number(args.major);assert.ok([17,18].includes(major));const output=path.resolve(args.output);assert.ok(output.startsWith(path.join(root,'verification')+path.sep)&&!fs.existsSync(output));
-const qa=buildOwnCloseQa(major),executable=args.psql??'psql',rawDb=createOwnClosePsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins}),diagnostics=[],db={...rawDb,query:async(...args)=>{try{return await rawDb.query(...args);}catch(e){diagnostics.push(e.message);throw e;}}},prefix=output.replace(/\.json$/,''),seed=prefix+'-seed.sql';fs.writeFileSync(seed,qa.sql,{flag:'wx'});
+const qa=buildOwnCloseQa(major,{byRun:true}),executable=args.psql??'psql',rawDb=createOwnClosePsqlQa({executable,major,port:55400+major,schema:qa.schema,pins:qa.pins}),diagnostics=[],db={...rawDb,query:async(...args)=>{try{return await rawDb.query(...args);}catch(e){diagnostics.push(e.message);throw e;}}},prefix=output.replace(/\.json$/,''),seed=prefix+'-seed.sql';fs.writeFileSync(seed,qa.sql,{flag:'wx'});
 const identity=(actor,caps)=>({principal:{user:{email:actor.actorEmail},tenant:{source:'membership',id:actor.tenantId,membershipId:actor.membershipId,effectiveCapabilities:caps}},session:{email:actor.actorEmail,id:actor.actorSessionId,version:actor.actorSessionVersion,releaseSha:actor.releaseSha}});
 let installed=false,checks=0,report;const check=(v,label)=>{assert.ok(v,label);checks++;};
 try{
@@ -47,7 +47,14 @@ try{
  const replayRun=await run('calculate',{key:c.key,body});assert.deepEqual(replayRun.saved,original);checks++;
  const secondRun=await run('calculate',{body:{...body,selection:{kind:'contracts',values:[second]}},key:randomUUID()});check(secondRun.saved.result.employeeCount===1,'unrelated legajo still calculates under its own declared scope');
  const otherType=await close(reviewer,'detail',{...query,liquidationType:'vacation'});check(otherType.rows.every(e=>e.state==='missing')&&otherType.groups.length===0,'monthly close never masquerades as vacation close');
- const remainingDetail=await close(reviewer,'detail',query),remaining=await close(reviewer,'command',{key:randomUUID(),body:command(remainingDetail,{kind:'contracts',values:[second]})});check(!remaining.snapshot.populationComplete,'two separate partial groups each preserve their actual coverage');
+ // 264: el mismo legajo se cierra pidiendo sólo su corrida; el detalle no trae a nadie más ni otro cálculo.
+ const secondRunId=(await close(reviewer,'detail',query)).rows.find(e=>e.contractId===second).runId;
+ await assert.rejects(close(reviewer,'detail',{...query,runId:'not-a-run'}),e=>e.code==='OWN_CLOSE_INPUT_INVALID');checks++;
+ await assert.rejects(close(reviewer,'detail',{...query,runId:c.id===secondRunId?randomUUID():c.id}),e=>['OWN_CLOSE_SELECTION_INVALID','OWN_CLOSE_INPUT_INVALID'].includes(e.code));checks++;
+ const remainingDetail=await close(reviewer,'detail',{...query,runId:secondRunId});check(remainingDetail.rows.length===1&&remainingDetail.rows[0].contractId===second&&remainingDetail.captures.length===1&&remainingDetail.captures[0].id===secondRunId,'a run-scoped detail holds only that run and its people still open');
+ const remaining=await close(reviewer,'command',{key:randomUUID(),runId:secondRunId,body:command(remainingDetail)});check(remaining.snapshot.employeeCount===1&&remaining.snapshot.employees[0].contractId===second,'closing one run freezes exactly its people');
+ check((await close(reviewer,'detail',query)).rows.every(e=>e.state==='closed'),'the whole period read afterwards shows both groups closed');
+ await assert.rejects(close(reviewer,'detail',{...query,runId:secondRunId}),e=>e.code==='OWN_CLOSE_SELECTION_INVALID');checks++;
  let reopenedDetail=await close(reviewer,'detail',query),reopenKey=randomUUID(),reopenBody=command(reopenedDetail,{kind:'all',values:[]},{command:'reopen',groupId:receipt.groupId});
  const aliasClosed=await close(alias,'detail',query);check(aliasClosed.groups.every(g=>!g.canReopen),'same maker person never receives a reopen control');await assert.rejects(close(alias,'command',{key:randomUUID(),body:command(aliasClosed,{kind:'all',values:[]},{command:'reopen',groupId:receipt.groupId})}),e=>e.code==='OWN_CLOSE_FORBIDDEN');checks++;
  const reopened=await close(reviewer,'command',{key:reopenKey,body:reopenBody});assert.deepEqual(reopened.snapshot,receipt.snapshot);checks++;assert.deepEqual(await close(reviewer,'attempt',{key:reopenKey}),{...reopened,replayed:true});checks++;

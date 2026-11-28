@@ -21,7 +21,7 @@ export function mountClockWorkspace(panel){
  const result=el('p','','fleet-count');result.dataset.workspace='count';result.setAttribute('role','status');
  const error=el('p','','fleet-error');error.setAttribute('role','alert');error.dataset.workspace='error';error.hidden=true;
  const partial=el('p','','fleet-note');partial.dataset.workspace='partial';partial.setAttribute('role','status');partial.hidden=true;
- const cards=el('div',null,'fleet-cards'),tableWrap=el('div',null,'workspace-table-scroll');cards.dataset.workspace='cards';tableWrap.dataset.workspace='table';tableWrap.tabIndex=0;tableWrap.setAttribute('role','region');tableWrap.setAttribute('aria-label','Control del parque de relojes');tableWrap.hidden=true;
+ const cards=el('div',null,'fleet-cards'),tableWrap=el('div',null,'workspace-table-scroll');cards.dataset.workspace='cards';cards.dataset.mcPager='6';cards.dataset.mcPagerNoun='relojes';cards.dataset.mcPagerSearch='off';tableWrap.dataset.workspace='table';tableWrap.tabIndex=0;tableWrap.setAttribute('role','region');tableWrap.setAttribute('aria-label','Control del parque de relojes');tableWrap.hidden=true;
  const cuts=el('p','','fleet-count');cuts.dataset.workspace='cuts';const exported=el('p','','fleet-count');exported.dataset.workspace='exported';exported.setAttribute('role','status');
  const autoLabel=el('label',null,'workspace-auto'),auto=el('input');auto.type='checkbox';auto.dataset.workspace='auto';autoLabel.append(auto,document.createTextNode('Actualizar cada minuto mientras no esté leyendo un detalle'));
  panel.append(head,summary,note,breakdown,form,result,error,partial,cards,tableWrap,cuts,exported,autoLabel);

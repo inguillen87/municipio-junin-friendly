@@ -1,6 +1,6 @@
 // Built sidebars and real capability gate; synthetic session, no payroll writes.
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {chromium} from 'playwright';
-const root=path.resolve('public'),out=path.resolve('verification/liquidaciones-menu'),origin='https://menu-test.invalid';fs.mkdirSync(out,{recursive:true});
+const root=path.resolve('public'),out=path.resolve(process.argv.find(a=>a.startsWith('--output='))?.slice(9)||'verification/liquidaciones-menu'),origin='https://menu-test.invalid';if(process.argv.some(a=>a.startsWith('--output='))){assert.ok(out.startsWith(path.resolve('verification')+path.sep));assert.ok(!fs.existsSync(out),'Preserve prior browser evidence');}fs.mkdirSync(out,{recursive:true});
 const checks=[],errors=[],requests=[];const browser=await chromium.launch({headless:true});
 try{for(const capabilities of [['payroll.read','payroll.novelty.read'],['payroll.novelty.read'],[]]){
  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'es-AR',serviceWorkers:'block'});
@@ -16,11 +16,23 @@ try{for(const capabilities of [['payroll.read','payroll.novelty.read'],['payroll
  });
  const p=await context.newPage();p.setDefaultTimeout(10000);p.on('pageerror',e=>errors.push(e.message));await p.goto(origin+'/personal');await p.waitForFunction(()=>document.documentElement.dataset.mcCapabilityReady==='true');
  if(!capabilities.length){await p.waitForTimeout(150);assert.equal(await p.locator('[data-liquidaciones-menu]').count(),0);checks.push('no menu without payroll capabilities');await context.close();continue;}
- const menu=p.locator('[data-liquidaciones-menu]');await menu.waitFor();assert.equal(await menu.locator('a:visible').count(),0);await menu.locator('summary').click();assert.equal(await menu.locator('a:visible').count(),capabilities.length===2?7:1);checks.push('only permitted links '+capabilities.join(','));
+ const menu=p.locator('[data-liquidaciones-menu]');await menu.waitFor();assert.equal(await menu.locator('a:visible').count(),0);await menu.locator(':scope > summary').click();assert.equal(await menu.locator('a[href]').count(),capabilities.length===2?11:1);assert.equal(await menu.locator('a:visible').count(),capabilities.length===2?2:1);checks.push('only permitted links '+capabilities.join(','));
  assert.match(await menu.evaluate(el=>el.previousElementSibling.textContent.trim()),/Personas/);checks.push('Liquidaciones immediately after Personas');
- await menu.locator('a').first().focus();await p.keyboard.press('Escape');assert.equal(await menu.getAttribute('open'),null);assert.equal(await menu.locator('summary').evaluate(el=>el===document.activeElement),true);await p.keyboard.press('Enter');checks.push('keyboard disclosure and Escape restore focus');
+ await menu.locator('a').first().focus();await p.keyboard.press('Escape');assert.equal(await menu.getAttribute('open'),null);assert.equal(await menu.locator(':scope > summary').evaluate(el=>el===document.activeElement),true);await p.keyboard.press('Enter');checks.push('keyboard disclosure and Escape restore focus');
  if(capabilities.length===2){
-  await p.screenshot({path:path.join(out,'desktop-synthetic.png')});await menu.getByRole('link',{name:'Reportes y costo salarial'}).click();await p.locator('[data-liquidaciones-menu] a[aria-current=page]').waitFor();assert.match(p.url(),/nomina#reportes$/);assert.equal(await p.locator('[data-liquidaciones-menu] a[aria-current=page]').textContent(),'Reportes y costo salarial');checks.push('reports link reaches correct task');
+  await p.screenshot({path:path.join(out,'desktop-synthetic.png')});
+  const cycle=menu.locator('details.task-section').filter({has:p.locator('summary').filter({hasText:'Liquidar el período'})});
+  await cycle.locator('summary').click();assert.deepEqual(await cycle.locator('a[href]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href'))),['/nomina#calculo','/nomina#anulacion','/nomina#decisiones','/nomina#cierre']);
+  const documents=menu.locator('details.task-section').filter({has:p.locator('summary').filter({hasText:'Documentos'})});await documents.locator('summary').click();
+  // Native details handlers close siblings on toggle; observe their bounded semantic outcome, not the click's immediate DOM snapshot.
+  await p.waitForFunction(()=>{
+   const nav=document.querySelector('[data-liquidaciones-external]');if(!nav)return false;
+   const sections=[...nav.querySelectorAll(':scope > details.task-section')];
+   const named=label=>sections.find(section=>section.querySelector(':scope > summary')?.textContent.trim()===label);
+   return named('Documentos')?.open===true&&named('Liquidar el período')?.open===false&&sections.filter(section=>section.open).length===1;
+  },null,{timeout:10000});
+  assert.equal(await cycle.getAttribute('open'),null);checks.push('external workflow accordions preserve calculation, annulment and confirmation order');
+  await menu.getByRole('link',{name:'Reportes y costo salarial'}).click();await p.locator('[data-liquidaciones-menu] a[aria-current=page]').waitFor();assert.match(p.url(),/nomina#reportes$/);assert.equal(await p.locator('[data-liquidaciones-menu] a[aria-current=page]').textContent(),'Reportes y costo salarial');checks.push('reports link reaches correct task');
   await p.locator('[data-liquidaciones-menu] a[href="/nomina#comparar"]').click();await p.waitForFunction(()=>document.querySelector('[data-liquidaciones-menu] a[aria-current=page]')?.getAttribute('href')==='/nomina#comparar');checks.push('same-page task selection');
   await p.goBack();await p.waitForFunction(()=>document.querySelector('[data-liquidaciones-menu] a[aria-current=page]')?.getAttribute('href')==='/nomina#reportes');checks.push('back restores task selection');
   for(const width of [390,320]){await p.setViewportSize({width,height:1000});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await menu.screenshot({path:path.join(out,`mobile-${width}-synthetic.png`)});checks.push('mobile '+width+'px');}

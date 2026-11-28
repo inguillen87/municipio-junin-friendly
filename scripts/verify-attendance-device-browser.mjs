@@ -43,6 +43,10 @@ const STATIC_MIME_TYPES = new Map([
 ]);
 const RESOURCES = Object.freeze(['site', 'device', 'connector', 'punch', 'batch', 'audit']);
 const REPORTED_INVENTORY_RESOURCE = 'reported-inventory';
+// The PM10 reception card on the same page reads its own status; the synthetic connector is not configured.
+const PM10_RECEPTION_RESOURCE = 'pm10-reception';
+// The clock dashboard on the same page is out of this verifier's scope: it is answered as «not enabled here».
+const CLOCK_DASHBOARD_RESOURCE = 'clock-dashboard';
 const LOCAL_TILE_SVG = Buffer.from(
   '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#e7efed"/><path d="M0 64h256M0 128h256M0 192h256M64 0v256M128 0v256M192 0v256" fill="none" stroke="#cad8d6" stroke-width="1"/></svg>',
   'utf8',
@@ -215,11 +219,12 @@ export function validateAttendanceDeviceApiRequest(request) {
 
   const params = new URLSearchParams(request.search);
   const resource = params.get('resource');
+  if (resource === CLOCK_DASHBOARD_RESOURCE) return { resource, page: 1 };
   assert.ok(
-    RESOURCES.includes(resource) || resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE,
+    RESOURCES.includes(resource) || resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE || resource === PM10_RECEPTION_RESOURCE,
     'ATTENDANCE_DEVICE_BROWSER_RESOURCE_INVALID',
   );
-  if (resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE) {
+  if (resource === 'bootstrap' || resource === REPORTED_INVENTORY_RESOURCE || resource === PM10_RECEPTION_RESOURCE) {
     assert.deepEqual([...params.keys()], ['resource'], 'ATTENDANCE_DEVICE_BROWSER_BOOTSTRAP_QUERY_INVALID');
   } else {
     assert.deepEqual(
@@ -502,6 +507,8 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     if (message.type() === 'error') issues.push(`console: ${message.text()}`);
   });
   page.on('requestfailed', (request) => {
+    // The clock fleet card is out of scope (answered «not available»); its own cancellation is not this page's issue.
+    if (new URL(request.url()).pathname === '/api/internal-clock-source') return;
     issues.push(`requestfailed: ${new URL(request.url()).pathname} ${request.failure()?.errorText || ''}`);
   });
   page.on('response', (response) => {
@@ -543,6 +550,15 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
         body: JSON.stringify(buildAttendanceDeviceAuthFixture()),
       });
     }
+    // The clock fleet card on the same page is out of this verifier's scope: answered as not available here.
+    if (clean.pathname === '/api/internal-clock-source' && clean.method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'cache-control': 'private, no-store, max-age=0' },
+        body: JSON.stringify({ ok: false, code: 'QA_OUT_OF_SCOPE' }),
+      });
+    }
     if (clean.pathname !== ATTENDANCE_PATH) {
       evidence.unexpectedApi += 1;
       return route.fulfill({
@@ -582,6 +598,24 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
           audit: auditEnabled,
           manage: manageEnabled,
         })),
+      });
+    }
+    if (resource === CLOCK_DASHBOARD_RESOURCE) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'cache-control': 'private, no-store, max-age=0' },
+        body: JSON.stringify({ ok: true, version: 'clock-operations.qa-out-of-scope' }),
+      });
+    }
+    if (resource === PM10_RECEPTION_RESOURCE) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'cache-control': 'private, no-store, max-age=0' },
+        body: JSON.stringify({ ok: true, version: 'pm10-status.v1', physicalClockVerified: false, payrollModified: false,
+          checkedAt: '2098-12-31T23:59:00.000Z', connectorState: 'not_configured', baselineRecords: 0, nominalReadAllowed: false, records: [],
+          summary: { lastReceivedAt: null, lastCapturedAt: null, receipts: 0, newMarks: 0, knownRecords: 0, observations: 0 } }),
       });
     }
     if (resource === REPORTED_INVENTORY_RESOURCE) {
@@ -636,12 +670,13 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     assert.equal(await page.locator('#appShell h1').innerText(), 'Relojes y marcaciones');
     assert.equal(await page.locator('.inventory-details tbody tr').count(), 13, 'ATTENDANCE_DEVICE_BROWSER_REPORTED_POINTS_INVALID');
     assert.equal(await page.locator('#tableBody tr').count(), 13, 'ATTENDANCE_DEVICE_BROWSER_OPERATIONAL_POINTS_INVALID');
-    assert.equal(await page.locator('#siteCount').innerText(), '13');
-    assert.equal(await page.locator('#deviceCount').innerText(), '13');
-    assert.equal(await page.locator('#hardwareState').innerText(), 'Sin conexión confirmada');
-    assert.equal(await page.locator('#hardwareFeature').innerText(), 'No confirmado');
-    assert.equal(await page.locator('#punchCount').innerText(), '0');
-    assert.equal(await page.locator('#biometricFeature').innerText(), 'No se almacenan');
+    // The summary sits inside the collapsed «Administración técnica» section: read its text, not its rendering.
+    assert.equal((await page.locator('#siteCount').textContent()).trim(), '13');
+    assert.equal((await page.locator('#deviceCount').textContent()).trim(), '13');
+    assert.equal((await page.locator('#hardwareState').textContent()).trim(), 'Sin acuse reciente confirmado');
+    assert.equal((await page.locator('#hardwareFeature').textContent()).trim(), 'No confirmada');
+    assert.equal((await page.locator('#punchCount').textContent()).trim(), '0');
+    assert.equal((await page.locator('#biometricFeature').textContent()).trim(), 'No se almacenan');
     assert.equal((await page.locator('body').innerText()).includes(FIXTURE.email), false, 'ATTENDANCE_DEVICE_BROWSER_FIXTURE_EMAIL_RENDERED');
 
     assert.equal(await page.locator('#attendanceMap').getAttribute('class').then((value) => value?.includes('leaflet-container')), true,
@@ -697,7 +732,7 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     assert.equal(await page.locator('#fitReportedPoints').isEnabled(), true,
       'ATTENDANCE_DEVICE_BROWSER_REFIT_DISABLED');
     await page.locator('#fitReportedPoints').click();
-    assert.match(await page.locator('#mapStatus').innerText(), /reencuadrado.*13 puntos/i,
+    assert.match(await page.locator('#mapStatus').innerText(), /reencuadrad[ao].*13 puntos/i,
       'ATTENDANCE_DEVICE_BROWSER_REFIT_STATUS_INVALID');
 
     const firstReportedMarker = page.locator('.reported-marker[title="PM-01 · Desarrollo Social"]');
@@ -714,8 +749,13 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     assert.match(popupCopy, /Red informada/,
       'ATTENDANCE_DEVICE_BROWSER_POPUP_CHANNEL_INVALID');
 
+    // Points, equipment, connectors, batches and audit now live in the collapsed technical section, next to the
+    // clock dashboard tabs: open it like a person would and count only its resource tabs.
+    const infrastructure = page.locator('details').filter({ has: page.locator('#resourcePanel') });
+    if ((await infrastructure.getAttribute('open')) === null) await infrastructure.locator(':scope > summary').click();
+    await page.locator('#tab-site').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#tab-audit').isHidden(), !auditEnabled, 'ATTENDANCE_DEVICE_BROWSER_AUDIT_VISIBILITY_INVALID');
-    assert.equal(await page.locator('[role="tab"]:visible').count(), auditEnabled ? 6 : 5, 'ATTENDANCE_DEVICE_BROWSER_TAB_COUNT_INVALID');
+    assert.equal(await page.locator('[role="tab"][data-resource]:visible').count(), auditEnabled ? 6 : 5, 'ATTENDANCE_DEVICE_BROWSER_TAB_COUNT_INVALID');
 
     await selectResource(page, 'device', 'Equipos registrados');
     assert.equal(await page.locator('#tableBody tr').count(), 13, 'ATTENDANCE_DEVICE_BROWSER_DEVICE_ROWS_INVALID');
@@ -775,7 +815,7 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
       await assertFocusVisibleAndUsable(page, 'tab-batch', 'ATTENDANCE_DEVICE_BROWSER_READER_END_FOCUS');
     }
 
-    await page.locator('[role="tab"][aria-selected="true"]').focus();
+    await page.locator('[role="tab"][data-resource][aria-selected="true"]').focus();
     await page.keyboard.press('Home');
     await waitForResource(page, 'site', 'Puntos registrados');
     await assertFocusVisibleAndUsable(page, 'tab-site', 'ATTENDANCE_DEVICE_BROWSER_HOME_FOCUS');
@@ -794,7 +834,8 @@ async function verifyScenario(browser, baseUrl, viewport, accessProfile, screens
     }
 
     await assertNoHorizontalOverflow(page, `ATTENDANCE_DEVICE_BROWSER_${viewport.name.toUpperCase()}_OVERFLOW`);
-    assert.equal(evidence.authGets, 1, 'ATTENDANCE_DEVICE_BROWSER_AUTH_GET_COUNT_INVALID');
+    // The page session check plus the shared capability gate (which hides actions the profile cannot use).
+    assert.equal(evidence.authGets, 2, 'ATTENDANCE_DEVICE_BROWSER_AUTH_GET_COUNT_INVALID');
     assert.equal(evidence.bootstrapGets, manageEnabled ? 2 : 1,
       'ATTENDANCE_DEVICE_BROWSER_BOOTSTRAP_GET_COUNT_INVALID');
     assert.equal(evidence.reportedInventoryGets, 1,

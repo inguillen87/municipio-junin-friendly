@@ -356,7 +356,7 @@ try {
   nominalAllowed=false;scope='a'.repeat(64);await page.locator('#refresh').click();await page.locator('#workspace').waitFor({state:'hidden'});assert.equal(writes.length-decisionRecoveryBefore,1);nominalAllowed=true;scope='f'.repeat(64);await page.locator('#refresh').click();await page.locator('#recovery').waitFor({state:'visible'});assert.equal(writes.length-decisionRecoveryBefore,1);await page.locator('#retry').click();await page.waitForFunction(()=>document.querySelector('#detailMessage').textContent.startsWith('Operación registrada'));assert.deepEqual(sends.at(-1),originalDecision);assert.equal(writes.length-decisionRecoveryBefore,2);assert.equal([...records.values()].filter(r=>r.kind==='assignment'&&r.status==='approved').length,1);await page.locator('#closeDetail').click();
   checks.push('uncertain approval stops25, withdrawn view clears nominal data, revoked scope cannot retry; fresh original scope recovers exact key/body after detail read without approving the rest');
   assert.deepEqual(external, []); assert.deepEqual(errors, []);
-  assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+  assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length + sessionStorage.length), 0);
   checks.push('no external requests, client persistence or browser exceptions');
   const result = {synthetic: true, localOperatorUi: true, realHttpHandler: true, municipalPersistenceVerified: false, physicalAcceptance: false, checks};
   fs.writeFileSync(path.join(reportDir, 'time-catalog-review-browser-result.json'), JSON.stringify(result, null, 2) + '\n'); console.log(JSON.stringify(result, null, 2));

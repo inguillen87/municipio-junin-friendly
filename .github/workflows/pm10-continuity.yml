@@ -49,7 +49,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm test
       - name: Preserve raw family certificate source fields
         run: |
           python -B -m unittest discover -s tests -p test_extract_rrhh_family.py

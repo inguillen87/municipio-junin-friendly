@@ -1,0 +1,197 @@
+{
+  "version": "municontrol-install-composition-derived.v1",
+  "name": "attendance-area-authority",
+  "installable": false,
+  "dryRun": true,
+  "committed": false,
+  "requiresCodexReviewedCommit": true,
+  "source": {
+    "path": "scripts/candidates/attendance-area-authority-v1.source.sql.txt",
+    "bytes": 14044,
+    "sha256": "db13b2abf4845aa1107fd10d7f79e43a84b6bb2b103d011af0e95454dc41f192"
+  },
+  "sourceManifest": {
+    "path": "scripts/candidates/attendance-area-authority-v1.source.manifest.json",
+    "sha256": "8996093ceb52d96e3ad3de0dca7e3c85f429a4aadc362da4292c98d1c0fcc377"
+  },
+  "attestation": {
+    "path": "scripts/candidates/install-composition-attestation-v1.json",
+    "sha256": "f3affb053f08466cc511f26f48ece752a8917658dbb63ebd9cda81fb8ed26695",
+    "complete": false
+  },
+  "removed": {
+    "barrierSha256": "27b94c46d0ca0956d76e4c4eb98a69b2d942073ce73949ab636374812994608d",
+    "rollbackSha256": "3c41bb5fdf19c0e14c34a58b7dd7ee6c6a1ee9fb70b77b5ce0fe2788a689c8a8"
+  },
+  "preserved": {
+    "prefixSha256": "8147a0c935e8395ecbe237284fce342934454e9b801e8232045e2810dd14217a",
+    "bodySha256": "5044b73f31cdb32a3326d853a6ee41037a86fa78f064efd0f9708d3cce53c39a",
+    "originalStatementsBytePreserved": true
+  },
+  "preimages": {
+    "functions": [
+      {
+        "signature": null,
+        "function": "attendance_gateway_assert_session_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": "public.digest(text,text)",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "function": "digest",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "grh_curated_source_read_lock_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "native_employee_catalog_v1",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_assert_no_sod_conflict",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_effective_capabilities",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "tenant_iam_reject_change",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      },
+      {
+        "signature": null,
+        "function": "time_catalog_native_actor_v2",
+        "prosrcSha256": null,
+        "kind": "dependency",
+        "owner": null,
+        "acl": null,
+        "secdef": null,
+        "config": null,
+        "lang": null,
+        "bin": null,
+        "volatile": null,
+        "strict": null,
+        "parallel": null,
+        "leakproof": null
+      }
+    ],
+    "triggers": [],
+    "newFunctions": [
+      {
+        "name": "attendance_area_scope_guard_v1",
+        "signature": "public.attendance_area_scope_guard_v1()",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_scope_audit_v1",
+        "signature": "public.attendance_area_scope_audit_v1()",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_catalog_label_v1",
+        "signature": "public.attendance_area_catalog_label_v1(jsonb,jsonb)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_context_v1",
+        "signature": "public.attendance_area_context_v1(jsonb,text)",
+        "redefined": false
+      },
+      {
+        "name": "attendance_area_assert_scope_v1",
+        "signature": "public.attendance_area_assert_scope_v1(jsonb,jsonb)",
+        "redefined": false
+      }
+    ]
+  },
+  "runtimeGrants": [],
+  "output": {
+    "path": "scripts/candidates/attendance-area-authority-v1.derived.sql.txt",
+    "bytes": 20975,
+    "sha256": "59aee8a298347fdcb6e8a11b1614e4d4fa8881f40f64515edba8945736742268"
+  }
+}

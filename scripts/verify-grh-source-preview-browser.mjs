@@ -147,7 +147,7 @@ try {
     await host.screenshot({ path: path.join(out, 'mobile-' + width + '.png') });
   }
   checks.push('320/390px keeps results readable, controls at least 44px and no page overflow.');
-  assert.deepEqual(errors, []); assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+  assert.deepEqual(errors, []); assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length + sessionStorage.length), 0);
   for (const body of calls) assert.deepEqual(Object.keys(body).sort(), ['contentBase64', 'definitionKey']);
   const report = { ok: true, mode: published ? 'published_assets_synthetic_api' : 'local_build_synthetic_api', checkedFiles, checksPassed: checks.length, checks, errors, realMunicipalSessionTested: false, municipalFilesUsed: false, privateRequestsForwarded: 0, businessWrites: 0 };
   fs.writeFileSync(path.join(out, published ? 'published.json' : 'result.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));

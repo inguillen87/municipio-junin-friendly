@@ -10,7 +10,7 @@ const releaseGate = process.argv.length === 3;
 const platform = manifest.platforms[process.platform]; assert.ok(platform, 'Unsupported verification platform');
 const root = path.resolve(import.meta.dirname, '..');
 const directory = path.join(root, 'verification', (releaseGate ? 'release' : 'patched') + '-chromium-' + manifest.version);
-assert.equal(path.dirname(directory), path.join(root, 'verification')); fs.mkdirSync(directory);
+assert.equal(path.dirname(directory), path.join(root, 'verification')); fs.mkdirSync(path.dirname(directory), { recursive: true }); fs.mkdirSync(directory);
 const archive = path.join(directory, 'browser.zip'), hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 execFileSync(process.platform === 'win32' ? 'curl.exe' : 'curl', ['--fail', '--silent', '--show-error', '--location', '--proto', '=https', '--proto-redir', '=https', '--output', archive, platform.url], { windowsHide: true, timeout: 180000 });
 assert.equal(hash(archive), platform.archiveSha256);

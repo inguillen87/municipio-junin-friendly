@@ -65,10 +65,17 @@ export function appendPreparteRows(rows, incoming, limit = NOVELTY_REVIEW_MAX_RO
   if (!Number.isSafeInteger(limit) || limit<1 || limit>NOVELTY_REVIEW_MAX_ROWS || !incoming.length || rows.length+incoming.length>limit) throw Error('La planilla no tiene espacio para todo el preparte. No se agregó ninguna fila.');
   const canonical=value=>/^\d{1,20}$/.test(value.trim())?value.trim().replace(/^0+(?=\d)/,''):value.trim();
   const occupied=new Set(rows.filter(row=>['44','95'].includes(canonical(row[1]))).map(row=>canonical(row[0])));
+  // Tardiness from the preparte: concept 101 in fractions of a working day, one row per legajo and sheet.
+  const late=new Set(rows.filter(row=>canonical(row[1])==='101').map(row=>canonical(row[0])));
   for (const row of incoming) {
-    if (!/^[1-9]\d{0,19}$/.test(row[0]) || !['44','95'].includes(row[1]) || !/^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(row[4]) ||
-      (row[1]==='95')!==(row[4]==='100') || row[2] || row[3] || row[5] || row[6] || row[9]!=='NO' ||
+    const tardiness=row[1]==='101';
+    if (!/^[1-9]\d{0,19}$/.test(row[0]) || !(tardiness?/^(?:0\.25|0\.5|0\.75|1)$/.test(row[4]):['44','95'].includes(row[1])&&/^(?:[3-9]|[1-8]\d|9[0-5]|100)$/.test(row[4])) ||
+      (!tardiness&&(row[1]==='95')!==(row[4]==='100')) || row[2] || row[3] || row[5] || row[6] || row[9]!=='NO' ||
       row[7].length<5 || row[7].length>160 || row[8].length<20 || row[8].length>500) throw Error('El preparte contiene una fila inválida. No se agregó ninguna fila.');
+    if (tardiness) {
+      if (late.has(row[0])) throw Error('El legajo '+row[0]+' ya tiene el concepto 101 en esta planilla. Revisá esa fila antes de agregar las tardanzas del preparte.');
+      late.add(row[0]); continue;
+    }
     if (occupied.has(row[0])) throw Error('El legajo '+row[0]+' ya tiene mayor dedicación o Full Time en esta planilla. Revisá esa fila antes de agregar el preparte.');
     occupied.add(row[0]);
   }

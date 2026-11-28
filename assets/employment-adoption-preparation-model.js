@@ -8,6 +8,7 @@ export const ADOPTION_PREPARATION_VERSION='employment-adoption-preparation.v1';
 export const ADOPTION_PENDING_PREPARATION_VERSION='employment-adoption-preparation.v2';
 export const ADOPTION_FINAL_PREPARATION_VERSION='employment-adoption-preparation.v3';
 export const ADOPTION_ACTIVE_PREPARATION_VERSION='employment-adoption-preparation.v4';
+export const ADOPTION_PREPARED_SOURCES_VERSION='employment-adoption-prepared-sources.v1';
 export function adoptionInactiveJurisdictionPending(row,today){return row.jurisdictionCode===null&&row.status==='inactive'&&civilDay(today)&&civilDay(row.endDate)&&row.endDate<today&&(row.startDate===null||civilDay(row.startDate)&&row.startDate<=row.endDate);}
 export const adoptionAttemptKey=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(v);
 const exact=(v,keys)=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&[Object.prototype,null].includes(Object.getPrototypeOf(v))&&Reflect.ownKeys(v).length===keys.length&&Reflect.ownKeys(v).every(k=>typeof k==='string'&&keys.includes(k))&&Object.values(Object.getOwnPropertyDescriptors(v)).every(d=>Object.hasOwn(d,'value'));
@@ -85,4 +86,20 @@ export function adoptionMixedSources(value){
  adoptionFinalSources({version:'employment-adoption-final-sources.v1',scope:value.scope,total:0,rows:[]});const seen=new Set();
  for(const row of value.rows){adoptionFinalSources({version:'employment-adoption-final-sources.v1',scope:value.scope,total:1,rows:[row]});if(row.revisionId.length!==36||row.packageSha256.length!==64||row.cutoff.length!==19)fail();const id=row.revisionId.toLowerCase();if(seen.has(id))fail();seen.add(id);}
  return Object.freeze({...value,scope:Object.freeze({...value.scope}),rows:Object.freeze(value.rows.map(r=>Object.freeze({...r})))});
+}
+
+// Additive catalog: legacy v1/v2 readers keep their original bounds unchanged.
+export function adoptionPreparedSources(value){
+ if(!exact(value,['version','scope','total','rows'])||value.version!==ADOPTION_PREPARED_SOURCES_VERSION
+ ||!Number.isSafeInteger(value.total)||value.total<0||value.total>3||!Array.isArray(value.rows)||value.rows.length!==value.total)fail();
+ adoptionFinalSources({version:'employment-adoption-final-sources.v1',scope:value.scope,total:0,rows:[]});
+ const ids=new Set(),cuts=new Set();let previous=null;
+ for(const row of value.rows){
+  adoptionFinalSources({version:'employment-adoption-final-sources.v1',scope:value.scope,total:1,rows:[row]});
+  const id=row.revisionId.toLowerCase();
+  if(row.revisionId.length!==36||row.packageSha256.length!==64||row.cutoff.length!==19||ids.has(id)||cuts.has(row.cutoff)
+   ||previous&&(previous.cutoff<row.cutoff||previous.cutoff===row.cutoff&&previous.revisionId>row.revisionId))fail();
+  ids.add(id);cuts.add(row.cutoff);previous=row;
+ }
+ return Object.freeze({...value,scope:Object.freeze({...value.scope}),rows:Object.freeze(value.rows.map(row=>Object.freeze({...row})))});
 }

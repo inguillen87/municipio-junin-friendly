@@ -6,7 +6,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 export async function verifyPrepartePublication(output) {
   const origin = 'https://municipio-junin-friendly.vercel.app';
   const paths = ['assets/attendance-preparte-model.js','assets/attendance-preparte-panel.js',
-    'assets/attendance-preparte-export.js','assets/attendance-preparte.css',
+    'assets/attendance-preparte-export.js','assets/attendance-tardiness-model.js','assets/junin-tardiness-policy.js','assets/attendance-preparte.css',
     'assets/payroll-novelty-workbench.js','assets/payroll-novelty-sheet.js','assets/payroll-novelty-sheet-model.js'];
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   const expected = Object.fromEntries(paths.map(file => [file,hash(fs.readFileSync('public/'+file))]));

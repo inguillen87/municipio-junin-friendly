@@ -4,7 +4,7 @@ on:
     branches: [master]
     paths: ['friendly-dashboard.html', 'assets/municontrol-enterprise.css', 'assets/app-routes.js', 'tests/executive-dashboard-focus.test.js', 'scripts/verify-public-entry-browser.mjs', 'scripts/build-friendly.mjs', '.github/workflows/public-entry.yml']
   pull_request:
-    paths: ['friendly-dashboard.html', 'assets/municontrol-enterprise.css', 'assets/app-routes.js', 'tests/executive-dashboard-focus.test.js', 'scripts/verify-public-entry-browser.mjs', 'scripts/build-friendly.mjs', '.github/workflows/public-entry.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'friendly-dashboard.html', 'assets/municontrol-enterprise.css', 'assets/app-routes.js', 'tests/executive-dashboard-focus.test.js', 'scripts/verify-public-entry-browser.mjs', 'scripts/build-friendly.mjs', '.github/workflows/public-entry.yml']
 permissions:
   contents: read
 concurrency:
@@ -23,7 +23,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-public-entry-browser.mjs
       - uses: actions/upload-artifact@v4

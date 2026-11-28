@@ -28,11 +28,21 @@ class Element{
  set value(value){const s=String(value);this._value=this.tagName==='select'&&!this.children.some(o=>o.value===s)?'':s;}
  focus(){}
  set innerHTML(html){this.replaceChildren();const stack=[this];for(const token of html.match(/<[^>]*>|[^<]+/g)??[]){if(token.startsWith('</')){stack.pop();continue;}if(token.startsWith('<')){const m=token.match(/^<([a-z][\w-]*)\b([^>]*)>/i);if(!m)continue;const element=new Element(m[1]);for(const a of m[2].matchAll(/([\w-]+)(?:="([^"]*)")?/g))element.setAttribute(a[1],a[2]??'');if(element.tagName==='input')element.type=element.getAttribute('type');if(element.tagName==='option')element._value=element.getAttribute('value')??'';stack.at(-1).append(element);if(!['input','link','br','hr','meta'].includes(element.tagName)&&!token.endsWith('/>'))stack.push(element);}else{const text=new Element('#text');text._text=token;stack.at(-1).append(text);}}}
- querySelector(selector){const attr=selector.match(/^(?:([\w-]+))?\[([\w-]+)(?:="([^"]*)")?\]$/),match=n=>attr?(!attr[1]||n.tagName===attr[1])&&Object.hasOwn(n.attributes,attr[2].toLowerCase())&&(attr[3]===undefined||n.attributes[attr[2].toLowerCase()]===attr[3]):n.tagName===selector;const walk=n=>{for(const child of n.children){if(match(child))return child;const nested=walk(child);if(nested)return nested;}return null;};return walk(this);}
+ querySelectorAll(selector){const attr=selector.match(/^(?:([\w-]+))?\[([\w-]+)(?:="([^"]*)")?\]$/),match=n=>{if(!attr)return n.tagName===selector;const name=attr[2].toLowerCase(),key=name.startsWith('data-')?name.slice(5).replace(/-([a-z])/g,(_all,letter)=>letter.toUpperCase()):null,value=key&&Object.hasOwn(n.dataset,key)?String(n.dataset[key]):n.getAttribute(name);return(!attr[1]||n.tagName===attr[1])&&value!==null&&(attr[3]===undefined||value===attr[3]);};const matches=[],walk=n=>{for(const child of n.children){if(match(child))matches.push(child);walk(child);}};walk(this);return matches;}
+ querySelector(selector){return this.querySelectorAll(selector)[0]??null;}
  addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(fn);}
  removeEventListener(type,fn){this.listeners.set(type,(this.listeners.get(type)??[]).filter(f=>f!==fn));}
  async emit(type){for(let n=this;n;n=n.parentElement)if(n.disabled)return;await Promise.all((this.listeners.get(type)??[]).map(fn=>fn({target:this,preventDefault(){}})));}
 }
+test('receipt DOM fixture selects scoped dataset descendants in document order with a static result',()=>{
+ const host=new Element(),list=new Element(),nested=new Element(),first=new Element('button'),second=new Element('button'),attributeRow=new Element('button'),outside=new Element('button');
+ list.dataset.receiptOpen='root-is-not-a-descendant';first.dataset.receiptOpen='first';second.dataset.receiptOpen='';attributeRow.setAttribute('data-receipt-open','attribute');outside.dataset.receiptOpen='outside';
+ host.append(list,outside);list.append(first,nested);nested.append(second,attributeRow);
+ const snapshot=list.querySelectorAll('[data-receipt-open]');assert.deepEqual(snapshot,[first,second,attributeRow]);assert.equal(list.querySelector('[data-receipt-open]'),first);
+ assert.deepEqual(list.querySelectorAll('button[data-receipt-open="first"]'),[first]);assert.deepEqual(list.querySelectorAll('[data-receipt-open=""]'),[second]);assert.deepEqual(list.querySelectorAll('[data-receipt-open="outside"]'),[]);
+ const later=new Element('button');later.dataset.receiptOpen='later';list.append(later);assert.deepEqual(snapshot,[first,second,attributeRow]);assert.deepEqual(list.querySelectorAll('[data-receipt-open]'),[first,second,attributeRow,later]);
+ list.replaceChildren();assert.deepEqual(list.querySelectorAll('[data-receipt-open]'),[]);assert.equal(list.querySelector('[data-receipt-open]'),null);assert.equal(outside.parentElement,host);
+});
 const events=()=>{const listeners=new Map();return{addEventListener:(type,fn)=>{if(!listeners.has(type))listeners.set(type,[]);listeners.get(type).push(fn);},removeEventListener:(type,fn)=>listeners.set(type,(listeners.get(type)??[]).filter(f=>f!==fn)),dispatch:(type,detail)=>{for(const fn of listeners.get(type)??[])fn({detail});}};};
 const capabilities=[...new Set([...OWN_RECEIPT_PREPARE,...OWN_RECEIPT_APPROVE])];
 
@@ -79,7 +89,7 @@ function harness(t){
 
 for(const code of ['OWN_RECEIPT_STATE_CHANGED','OWN_RECEIPT_IDENTITY_REQUIRED'])test('definitive '+code+' and same-key404 offer explicit correction with fresh full preview',async t=>{
  const h=harness(t);await h.start();h.q('date').value='2026-09-30';h.q('legend').value='Leyenda de ensayo conservada';await h.act('query','submit');h.q('reason').value='Conservación de recibo exclusivamente sintético QA';await h.missingAfterRejection(code);const original=structuredClone(h.posts()[0]);assert.equal(h.q('fields').disabled,true);h.state.sourceVersion=hash('c');h.state.count=2;const before=h.requests.length;await h.act('correct');const reads=h.requests.slice(before);
- assert.ok(reads.some(r=>r.url.includes('resource=issuer')));assert.ok(reads.some(r=>r.body?.operation==='preview'));assert.ok(reads.some(r=>r.url.includes('resource=attempt')));assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.equal(h.posts().length,1,'Correction does not record an operation');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('correct').hidden,true);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('retry').hidden,true);assert.equal(h.q('previous').hidden,false);assert.match(h.q('previous').textContent,new RegExp(original.key));assert.match(h.q('previous').textContent,/1 recibos/);assert.match(h.q('summary').textContent,/2 recibos/);assert.equal(h.q('reason').value,original.body.payload.reason);assert.equal(h.q('date').value,original.body.payload.params.paymentDate);assert.equal(h.q('legend').value,original.body.payload.params.legend);assert.equal(h.q('scope').value,'all');assert.equal(h.q('confirm').checked,false);
+ assert.ok(reads.some(r=>r.url.includes('resource=issuer')));assert.ok(reads.some(r=>r.body?.operation==='preview'));assert.ok(reads.some(r=>r.url.includes('resource=attempt')));assert.equal(reads.filter(r=>r.url==='/api/internal-auth').length,2);assert.equal(h.posts().length,1,'Correction does not record an operation');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('correct').hidden,true);assert.equal(h.q('recover').hidden,true);assert.equal(h.q('retry').hidden,true);assert.equal(h.q('previous').hidden,false);assert.match(h.q('previous').textContent,new RegExp(original.key));assert.match(h.q('previous').textContent,/1 recibo y /);assert.match(h.q('summary').textContent,/2 recibos/);assert.equal(h.q('reason').value,original.body.payload.reason);assert.equal(h.q('date').value,original.body.payload.params.paymentDate);assert.equal(h.q('legend').value,original.body.payload.params.legend);assert.equal(h.q('scope').value,'all');assert.equal(h.q('confirm').checked,false);
  h.state.postError=null;await h.act('prepare');assert.equal(h.posts().length,2);const next=h.posts()[1];assert.notEqual(next.key,original.key);assert.equal(next.body.payload.sourceVersion,hash('c'));assert.deepEqual(h.posts()[0],original);assert.match(h.q('state').textContent,/pendiente de revisión/);assert.equal(h.q('approve').disabled,true,'Preparation never approves availability');
 });
 
@@ -120,7 +130,7 @@ test('correction preserves a single employee range and exact contract selection 
 });
 
 test('a fresh zero-receipt source unlocks correction without inventing a result or allowing persistence',async t=>{
- const h=harness(t);await h.start();await h.missingAfterRejection();h.state.zero=true;h.state.sourceVersion=hash('c');await h.act('correct');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('consult').disabled,false);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);assert.match(h.q('status').textContent,/no tiene recibos propios cerrados/);assert.match(h.q('summary').textContent,/0 recibos/);assert.match(h.q('previous').textContent,/1 recibos/);assert.equal(h.posts().length,1);
+ const h=harness(t);await h.start();await h.missingAfterRejection();h.state.zero=true;h.state.sourceVersion=hash('c');await h.act('correct');assert.equal(h.q('fields').disabled,false);assert.equal(h.q('consult').disabled,false);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);assert.match(h.q('status').textContent,/no tiene recibos propios cerrados/);assert.match(h.q('summary').textContent,/0 recibos/);assert.match(h.q('previous').textContent,/1 recibo y /);assert.equal(h.posts().length,1);
 });
 
 test('correcting a historical batch restores its department scope instead of the unrelated query dropdown',async t=>{
@@ -176,4 +186,183 @@ test('multi-type uncertain command retains its original body/key and is not alte
 });
 test('zero closed receipts retains the exact department filter and points to preparation rather than only closing',async t=>{
  const h=harness(t);await h.start();h.state.zero=true;h.q('scope').value='department';await h.act('scope','change');h.q('departmentFrom').value='35';h.q('departmentTo').value='35';await h.act('query','submit');assert.equal(h.q('empty').hidden,false);assert.match(h.q('emptyScope').textContent,/Repartición 35/);assert.match(h.q('emptyScope').textContent,/Mensual/);assert.match(h.q('empty').textContent,/preparación y el cálculo/);assert.equal(h.q('empty').querySelector('a').getAttribute('href'),'/nomina#calculo');assert.equal(h.q('scope').value,'department');assert.equal(h.q('departmentFrom').value,'35');assert.equal(h.q('departmentTo').value,'35');assert.equal(h.q('type-monthly').checked,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.posts().length,0);
+});
+
+
+// Receipt range intersection: actual public panel and existing v1/v2/v3
+// contracts, synthetic HTTP only. No SQL, quantity-v4 reader or delivery.
+async function chooseReceiptIntersection(h,filters={}){
+ h.q('scope').value='combined';await h.act('scope','change');
+ for(const range of ['employee','department','agreement'])for(const end of ['From','To'])h.q(range+end).value=filters[range+end]??'';
+}
+const receiptIntersectionFixture=()=>receiptPreview(1).snapshot.records[0];
+const exactReceiptIntersection=()=>{
+ const r=receiptIntersectionFixture();
+ return {employeeFrom:r.employeeNumber,employeeTo:r.employeeNumber,departmentFrom:r.departmentCode,departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:r.agreementCode};
+};
+
+test('receipt intersection is an explicit choice and never turns empty filters into all',async t=>{
+ const h=harness(t);assert.equal(h.q('scope').value,'');assert.equal(h.q('combinedHelp').hidden,true);await h.start();const before=h.requests.filter(r=>r.body?.operation==='preview').length;
+ await chooseReceiptIntersection(h);
+ assert.equal(h.q('combinedHelp').hidden,false);assert.match(h.q('combinedHelp').textContent,/cumplan todos los rangos/);
+ for(const range of ['employee','department','agreement']){assert.equal(h.q(range+'Range').hidden,false);assert.equal(h.q(range+'Range').disabled,false);assert.equal(h.q(range+'From').required,false);assert.match(h.q(range+'Help').textContent,/límite abierto/);}
+ await h.act('query','submit');assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,before);assert.match(h.q('status').textContent,/Completá al menos un límite/);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection sends all three inclusive ranges with exact original codes',async t=>{
+ const h=harness(t);await h.start();const filters=exactReceiptIntersection();for(const key of Object.keys(filters))filters[key]=filters[key].padStart(5,'0');
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');
+ const sent=h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params;
+ assert.deepEqual(sent.filters,filters);assert.deepEqual(h.state.lastPreview.snapshot.params.filters,filters);assert.ok(!h.q('pdf').disabled);
+ for(const label of ['Legajo','Repartición','Convenio'])assert.match(h.q('summary').textContent,new RegExp(label));
+ assert.deepEqual(Object.keys(sent).sort(),Object.keys(receiptPreview(1).snapshot.params).sort());assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection preserves one-sided bounds instead of closing or broadening them',async t=>{
+ const h=harness(t);await h.start();const r=receiptIntersectionFixture(),filters={employeeFrom:r.employeeNumber,employeeTo:'',departmentFrom:'',departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:''};
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');
+ assert.deepEqual(h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.filters,filters);assert.ok(!h.q('pdf').disabled);assert.match(h.q('summary').textContent,/sin límite inicial/);assert.match(h.q('summary').textContent,/sin límite final/);
+});
+
+for(const range of ['employee','department','agreement'])test('receipt intersection rejects invalid '+range+' bounds before requesting a preview',async t=>{
+ const h=harness(t);await h.start();
+ for(const [from,to]of [['20','10'],['1.5','2'],[' 1','2'],['1000000000',''],['','x']]){
+  const filters=exactReceiptIntersection();filters[range+'From']=from;filters[range+'To']=to;await chooseReceiptIntersection(h,filters);
+  const before=h.requests.filter(r=>r.body?.operation==='preview').length;await h.act('query','submit');
+  assert.equal(h.requests.filter(r=>r.body?.operation==='preview').length,before);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+ }
+});
+
+test('receipt intersection rejects a returned record outside the complete requested scope',async t=>{
+ const h=harness(t);await h.start();h.state.count=2;await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');
+ assert.equal(h.q('result').hidden,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.match(h.q('status').textContent,/fuera de los límites/);assert.equal(h.posts().length,0);
+});
+
+test('receipt intersection includes every filter in an empty scope and withdraws review when agreement changes',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');
+ for(const label of ['Legajo','Repartición','Convenio'])assert.match(h.q('emptyScope').textContent,new RegExp(label));
+ assert.equal(h.q('empty').hidden,false);h.state.zero=false;await h.act('query','submit');assert.ok(!h.q('pdf').disabled);h.q('confirm').checked=true;
+ h.q('agreementFrom').value='1';for(const handler of h.q('fields').listeners.get('input')??[])await handler({target:h.q('agreementFrom')});await h.settled();
+ assert.equal(h.q('pdf').disabled,true);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('confirm').checked,false);assert.equal(h.q('result').hidden,true);
+ h.hide();for(const range of ['employee','department','agreement'])for(const end of ['From','To'])assert.equal(h.q(range+end).value,'');
+});
+
+test('receipt intersection correction restores exact filters and leaves the original attempt unchanged',async t=>{
+ const h=harness(t);await h.start();const r=receiptIntersectionFixture(),filters={employeeFrom:r.employeeNumber,employeeTo:'',departmentFrom:'',departmentTo:r.departmentCode,agreementFrom:r.agreementCode,agreementTo:r.agreementCode};
+ await chooseReceiptIntersection(h,filters);await h.act('query','submit');h.q('contracts').options[0].selected=true;await h.act('contracts','change');await h.act('selected');h.q('reason').value='Intersección sintética conservada para revisión';
+ await h.missingAfterRejection();const original=structuredClone(h.posts()[0]);h.state.sourceVersion=hash('c');await h.act('correct');
+ assert.equal(h.q('scope').value,'combined');for(const key of Object.keys(filters))assert.equal(h.q(key).value,filters[key]);assert.deepEqual(h.state.lastPreview.snapshot.params.filters,filters);assert.deepEqual(h.state.lastPreview.snapshot.params.contracts,original.body.payload.params.contracts);assert.deepEqual(h.posts()[0],original);assert.equal(h.q('confirm').checked,false);
+ h.state.postError=null;await h.act('prepare');assert.equal(h.posts().length,2);assert.notEqual(h.posts()[1].key,original.key);assert.deepEqual(h.posts()[1].body.payload.params,original.body.payload.params);assert.deepEqual(h.posts()[0],original);
+});
+
+test('receipt intersection uncertain retry retains its exact original body and key',async t=>{
+ const h=harness(t);await h.start();await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');h.q('reason').value='Intersección con respuesta incierta exclusivamente sintética';h.state.network=true;await h.act('prepare');const original=structuredClone(h.posts()[0]);
+ assert.equal(h.q('fields').disabled,true);h.q('scope').value='all';await h.act('scope','change');h.state.network=false;await h.act('retry');
+ assert.equal(h.posts().length,2);assert.deepEqual(h.posts()[1],original);assert.equal(h.q('recover').hidden,true);
+});
+
+test('receipt intersection filters do not leak into a later explicit all-employees query',async t=>{
+ const h=harness(t);await h.start();await chooseReceiptIntersection(h,exactReceiptIntersection());await h.act('query','submit');h.q('scope').value='all';await h.act('scope','change');await h.act('query','submit');
+ const filters=h.requests.filter(r=>r.body?.operation==='preview').at(-1).body.params.filters;assert.ok(Object.values(filters).every(value=>value===''));assert.equal(h.q('agreementRange').hidden,true);assert.equal(h.q('agreementRange').disabled,true);assert.equal(h.q('combinedHelp').hidden,true);assert.match(h.q('summary').textContent,/Todos los legajos/);assert.equal(h.posts().length,0);
+});
+
+
+test('los conteos de Recibos concuerdan en número: «1 recibo», «1 grupo cerrado», «1 página»', async () => {
+  const { howMany } = await import('../assets/own-payroll-receipt-panel.js');
+  assert.equal(howMany(1, 'recibo', 'recibos'), '1 recibo'); assert.equal(howMany(29, 'recibo', 'recibos'), '29 recibos'); assert.equal(howMany(0, 'recibo', 'recibos'), '0 recibos');
+  const fs = await import('node:fs');
+  const panel = fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(panel, /(recordCount|total|conceptCount|length)\} (recibos|conceptos|grupos cerrados)/, 'ningún conteo queda con el plural fijo');
+  assert.match(panel, /howMany\(s\.recordCount,'recibo','recibos'\)\} · \$\{howMany\(s\.conceptCount,'concepto','conceptos'\)\} · \$\{howMany\(s\.sources\.length,'grupo cerrado','grupos cerrados'\)\}\./);
+  assert.match(panel, /pdf\.recordCount===1\?'1 recibo completo':pdf\.recordCount\+' recibos completos'\} en \$\{howMany\(pdf\.pageCount,'página','páginas'\)\}\./);
+});
+
+
+// Product-facing journey: existing DTOs and local controls only, no new request.
+async function openJourneyBatch(h,{state='prepared',sourceCurrent=true,canApprove=false,canDownload=true}={}){
+ await h.start();const preview=h.state.lastPreview;
+ const event=h.commit({command:'prepare',scopeVersion:preview.scopeVersion,sourceVersion:preview.snapshot.sourceVersion,params:preview.snapshot.params,batchId:null,batchSha256:null,reason:'Conjunto sintético preparado para la tarjeta de etapas',reviewConfirmed:false},uid(991));
+ const batch=h.batches.get(event.batchId);Object.assign(batch,{state,sourceCurrent,permissions:{canApprove,canWithdraw:true,canDownload}});
+ if(state!=='prepared')batch.review={id:uid(992),decision:state,at:'2026-10-14T16:00:00Z',by:'Revisor sintético',reason:'Decisión sintética del conjunto para consultar etapas'};
+ await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();return batch;
+}
+test('receipt journey starts unconsulted and never invents completed stages or zero amounts',async t=>{
+ const h=harness(t);assert.equal(h.q('journey').hidden,true);h.event('taskchange',{id:'recibos'});await h.settled();assert.equal(h.q('journey').hidden,false);
+ assert.equal(h.q('journeyConsult').textContent,'Consulta pendiente');assert.equal(h.q('journeyPrepare').textContent,'Sin conservar');assert.equal(h.q('journeyAvailable').textContent,'Sin habilitar');
+ assert.equal(h.q('journeyConsultStep').dataset.state,'current');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.doesNotMatch(h.q('journey').textContent,/(?:\$\s*0|0,00|Disponibilidad aprobada)/);assert.equal(h.posts().length,0);
+});
+test('receipt journey reflects complete preview without changing search, controls or requests',async t=>{
+ const h=harness(t);await h.start();assert.equal(h.q('journeyConsult').textContent,'Previa completa verificada');assert.equal(h.q('journeyPrepareStep').dataset.state,'current');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.match(h.q('journeyNext').textContent,/Conservar para revisión/);
+ const before=h.requests.length,message=h.q('journeyNext').textContent,canPrepare=h.q('prepare').disabled;h.q('search').value='Otra vista';await h.act('search','input');h.q('reason').value='Motivo local sintético';await h.act('reason','input');h.q('confirm').checked=true;await h.act('confirm','change');
+ assert.equal(h.requests.length,before);assert.equal(h.q('journeyNext').textContent,message);assert.equal(h.q('prepare').disabled,canPrepare);assert.equal(h.posts().length,0);
+});
+test('receipt journey empty result points to calculation/confirmation/close without enabling emission',async t=>{
+ const h=harness(t);await h.start();h.state.zero=true;await h.act('query','submit');assert.equal(h.q('journeyConsultStep').dataset.state,'empty');assert.equal(h.q('journeyPrepareStep').dataset.state,'waiting');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.match(h.q('journeyNext').textContent,/cálculo, la confirmación y el cierre/);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);assert.equal(h.posts().length,0);
+});
+test('receipt journey exact selection requires the existing verification before preparation',async t=>{
+ const h=harness(t);await h.start();h.q('contracts').options[0].selected=true;await h.act('contracts','change');assert.equal(h.q('journeyConsult').textContent,'Selección por verificar');assert.match(h.q('journeyNext').textContent,/Revisar sólo los legajos elegidos/);assert.equal(h.q('prepare').disabled,true);assert.equal(h.q('pdf').disabled,true);
+ await h.act('selected');assert.equal(h.q('journeyConsult').textContent,'Previa completa verificada');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.equal(h.posts().length,0);
+});
+test('receipt journey pending batch explains independent review and missing local review fields only',async t=>{
+ const h=harness(t);await openJourneyBatch(h);assert.match(h.q('journeyNext').textContent,/persona distinta de quien preparó/);assert.equal(h.q('journeyAvailableStep').dataset.state,'current');assert.equal(h.q('approve').disabled,true);
+ const batch=[...h.batches.values()][0];batch.permissions.canApprove=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();const before=h.requests.length,disabled=h.q('approve').disabled;
+ assert.match(h.q('journeyNext').textContent,/motivo de al menos 10 caracteres y marcá/);h.q('reason').value='Motivo sintético de revisión completa';await h.act('reason','input');assert.match(h.q('journeyNext').textContent,/marcá la casilla/);h.q('confirm').checked=true;await h.act('confirm','change');assert.match(h.q('journeyNext').textContent,/volverá a comprobar los permisos/);
+ assert.equal(h.q('journeyAvailableStep').dataset.state,'current');assert.equal(h.q('journey').dataset.state,'neutral');assert.equal(h.q('approve').disabled,disabled);assert.equal(h.requests.length,before);assert.equal(h.posts().length,0);
+});
+test('receipt journey never shows approved availability for changed sources or withdrawn batches',async t=>{
+ const h=harness(t);await openJourneyBatch(h,{state:'approved',sourceCurrent:false,canDownload:false});assert.equal(h.q('journeyAvailableStep').dataset.state,'blocked');assert.equal(h.q('journeyAvailable').textContent,'Fuentes cambiadas');assert.match(h.q('journeyNext').textContent,/se retiró su descarga/);assert.doesNotMatch(h.q('journeyNext').textContent,/disponibilidad.*está aprobada/);assert.equal(h.q('pdf').disabled,true);assert.equal(h.posts().length,0);
+ const batch=[...h.batches.values()][0];batch.state='withdrawn';batch.review.decision='withdrawn';batch.sourceCurrent=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();assert.equal(h.q('journeyAvailable').textContent,'Disponibilidad retirada');assert.equal(h.q('journeyAvailableStep').dataset.state,'blocked');assert.equal(h.q('pdf').disabled,true);
+});
+test('receipt journey approved batch stays approved independently of new decision form fields',async t=>{
+ const h=harness(t);await openJourneyBatch(h,{state:'approved'});assert.equal(h.q('journey').dataset.state,'approved');assert.equal(h.q('journeyAvailable').textContent,'Disponibilidad aprobada');assert.equal(h.q('journeyAvailableStep').dataset.state,'complete');const before=h.requests.length;
+ h.q('reason').value='';await h.act('reason','input');h.q('confirm').checked=false;await h.act('confirm','change');assert.equal(h.q('journey').dataset.state,'approved');assert.match(h.q('journeyNext').textContent,/firma y el pago se controlan por separado/);assert.equal(h.requests.length,before);assert.equal(h.posts().length,0);
+});
+test('receipt journey pending withdrawal overrides approved state and never confirms an uncertain send',async t=>{
+ const h=harness(t);await openJourneyBatch(h,{state:'approved'});h.q('reason').value='Retirada exclusivamente sintética sin respuesta confirmada';h.q('confirm').checked=true;h.state.network=true;await h.act('withdraw');assert.equal(h.posts().length,1);const original=structuredClone(h.posts()[0]);assert.equal(h.q('journeyAvailable').textContent,'Sin confirmar');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.match(h.q('journeyNext').textContent,/Consultar el envío pendiente/);
+ await h.act('recover');assert.equal(h.q('journeyAvailable').textContent,'Sin confirmar');assert.deepEqual(h.posts()[0],original);assert.equal(h.posts().length,1);assert.equal(h.q('fields').disabled,true);
+});
+test('receipt journey read-only access and sensitive withdrawal do not offer approval or keep prior status',async t=>{
+ const h=harness(t);await openJourneyBatch(h,{canApprove:true});h.event('municontrol:capabilities-ready',{tenantCapabilities:[...OWN_RECEIPT_READ]});assert.match(h.q('journeyNext').textContent,/persona distinta/);assert.doesNotMatch(h.q('journeyNext').textContent,/Para solicitar la aprobación/);assert.equal(h.q('approve').disabled,true);
+ h.event('municontrol:capabilities-ready',{tenantCapabilities:[]});assert.equal(h.q('journey').hidden,true);assert.equal(h.q('journeyNext').textContent,'');assert.equal(h.q('journeyAvailable').textContent,'');assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.equal(h.posts().length,0);
+});
+test('receipt journey semantics use a noninteractive list, one bounded announcement and mobile stack',()=>{
+ const source=fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.js',import.meta.url),'utf8'),css=fs.readFileSync(new URL('../assets/own-payroll-receipt-panel.css',import.meta.url),'utf8');const card=source.split('<section class="own-receipt-journey"')[1].split('</section>')[0];
+ assert.match(card,/<ol[^>]*aria-label="Etapas de los recibos"/);assert.equal((card.match(/<li /g)??[]).length,3);assert.equal((card.match(/aria-live=/g)??[]).length,1);assert.match(card,/aria-atomic="true"/);assert.doesNotMatch(card,/<button|<a /);assert.match(source,/if\(\$\(key\)\.textContent!==value\)/);assert.match(css,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);assert.match(css,/@media\(max-width:720px\).*own-receipt-journey-steps\{grid-template-columns:1fr/s);
+});
+
+
+test('receipt journey filtered empty selection does not deny existing closed source groups',async t=>{
+ const h=harness(t);await h.start();const originalFetch=globalThis.fetch;
+ globalThis.fetch=async(url,options={})=>{const response=await originalFetch(url,options);if(options.body&&JSON.parse(options.body).operation==='preview'){
+  const value=await response.json(),s=value.data.snapshot;s.records=[];s.recordCount=0;s.conceptCount=0;for(const source of s.sources)source.selectedCount=0;assert.ok(s.sources.length>0&&s.sources.every(source=>source.employeeCount>0));value.data.snapshotSha256=ownRunHash(s);return new Response(JSON.stringify(value));
+ }return response;};
+ await h.act('query','submit');assert.equal(h.q('journeyConsult').textContent,'Sin recibos en esta consulta');assert.match(h.q('journeyNext').textContent,/Revisá el período, los tipos y el alcance/);assert.doesNotMatch(h.q('journeyNext').textContent,/no (?:hay|encontró).*liquidaciones.*cerradas/);assert.equal(h.q('journeyAvailableStep').dataset.state,'waiting');assert.equal(h.q('prepare').disabled,true);assert.equal(h.posts().length,0);
+});
+
+
+// The journey explains the same reason rule that ownReceiptCommand applies before any request.
+const REASON_SAMPLES=['Motivo sintético de revisión completa','Motivo sintético\nen dos renglones','Motivo sintético\r\nen dos renglones',' Motivo sintético con espacio inicial','Motivo sintético con espacio final ','Motivo sintético con tab final\t','Motivo con <b>marca</b>','Motivo con a>b','Motivo de revisión descompuesto','Motivo con control \u0007 pegado','Motivo con dirección ‮ invertida','Motivo con aislado ⁦ x','corto','x'.repeat(1000),'x'.repeat(1001),'          motivo          '];
+test('receipt reason problem agrees with ownReceiptCommand for every sample',async()=>{
+ const {receiptCommand}=await import('./fixtures/own-payroll-receipt-synthetic.js'),{ownReceiptReasonProblem}=await import('../assets/own-payroll-receipt-model.js');
+ for(const reason of REASON_SAMPLES){let accepted=true;try{ownReceiptCommand({...receiptCommand(),reason});}catch{accepted=false;}assert.equal(ownReceiptReasonProblem(reason)===null,accepted,JSON.stringify(reason));}
+ assert.match(ownReceiptReasonProblem('Motivo sintético\nen dos renglones'),/solo renglón/);assert.match(ownReceiptReasonProblem('Motivo sintético con espacio final '),/espacios al principio y al final/);
+ assert.match(ownReceiptReasonProblem('Motivo con <b>marca</b>'),/< ni >/);assert.match(ownReceiptReasonProblem('Motivo de revisión descompuesto'),/acentos/);assert.match(ownReceiptReasonProblem('Motivo con dirección ‮ invertida'),/dirección de texto/);
+});
+test('receipt journey never reports a reason as ready when the command would reject it',async t=>{
+ const h=harness(t);await openJourneyBatch(h);const batch=[...h.batches.values()][0];batch.permissions.canApprove=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();
+ for(const [reason,expected] of [['Motivo sintético de revisión\nen dos renglones',/solo renglón/],['Motivo sintético de revisión completa ',/espacios al principio y al final/],['Motivo sintético con <marca>',/< ni >/]]){
+  h.q('reason').value=reason;await h.act('reason','input');h.q('confirm').checked=false;await h.act('confirm','change');
+  assert.match(h.q('journeyNext').textContent,expected);assert.match(h.q('journeyNext').textContent,/Después marcá la casilla/);
+  h.q('confirm').checked=true;await h.act('confirm','change');assert.match(h.q('journeyNext').textContent,expected);assert.doesNotMatch(h.q('journeyNext').textContent,/volverá a comprobar/);assert.equal(h.q('journey').dataset.state,'warning');
+  const before=h.posts().length;await h.act('approve');assert.equal(h.posts().length,before,'nothing is sent');assert.match(h.q('status').textContent,expected,'the status names the same problem');assert.equal(h.q('reason').value,reason,'the typed reason is kept');assert.match(h.q('journeyNext').textContent,expected,'the batch view is kept');
+ }
+ h.q('reason').value='Motivo sintético de revisión completa';await h.act('reason','input');assert.match(h.q('journeyNext').textContent,/volverá a comprobar los permisos/);assert.equal(h.q('journey').dataset.state,'neutral');
+});
+
+test('approve without the review mark keeps the batch and the reason, and sends nothing',async t=>{
+ const h=harness(t);await openJourneyBatch(h);const batch=[...h.batches.values()][0];batch.permissions.canApprove=true;await h.act('history');await h.q('list').querySelector('button').emit('click');await h.settled();
+ const reason='Motivo sintético de revisión completa';h.q('reason').value=reason;await h.act('reason','input');h.q('confirm').checked=false;await h.act('confirm','change');
+ const before=h.posts().length;await h.act('approve');
+ assert.equal(h.posts().length,before);assert.equal(h.q('status').textContent,'Confirmá la revisión del conjunto completo.');assert.equal(h.q('reason').value,reason);assert.equal(h.q('result').hidden,false,'the batch stays on screen');
+ h.q('confirm').checked=true;await h.act('confirm','change');await h.act('approve');assert.equal(h.posts().length,before+1,'after fixing it, one approval is sent');
 });

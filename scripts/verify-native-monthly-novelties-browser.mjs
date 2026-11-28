@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Real UI; all private APIs (GET and POST) are intercepted synthetic fixtures. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,6 +37,7 @@ function readBatch(stored){
     b.status==='submitted'&&actor==='checker'?(current?['approve','reject']:['reject']):[];
   b.canExport=b.status==='approved'&&current&&nominal;return b;
 }
+let bootstrapReads=0;
 function bootstrap(){return {ok:true,principal:{email:actor+'@example.invalid',membershipId:ids[actor],tenantId:ids.tenant,
   certifiedBindingId:ids.binding,capabilities:capabilities()},feature:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only'},
   limits:{contractVersion:'payroll-novelty-batch.v2',approvalEffect:'export_only',grhMutation:false,payrollCalculated:false,payrollPosted:false,
@@ -96,7 +98,7 @@ try{
           return route.fulfill({json:response});
         }
         assert.equal(url.searchParams.get('version'),'2');const resource=url.searchParams.get('resource');
-        if(resource==='bootstrap')return route.fulfill({json:bootstrap()});
+        if(resource==='bootstrap'){bootstrapReads++;return route.fulfill({json:bootstrap()});}
         if(resource==='employee'){
           assert.equal(nominal,true);assert.equal(url.searchParams.has('legajo'),false);const contractId=url.searchParams.get('contractId');
           let subject=contractId===ids.other?{...original,contractId:ids.other,employeeName:'Otra alta QA con el mismo legajo',registrationId:'ffffffff-ffff-4fff-8fff-ffffffffffff'}:clone(currentSubject);
@@ -216,10 +218,11 @@ try{
   await page.locator('#periodMonth').fill('2026-09');await page.locator('#conceptSourceId').fill('44');
   await page.locator('#costCenterSourceId').fill('9');await page.locator('#adjustmentMonth').fill('2026-08');
   await page.locator('#quantityDecimal').fill('1,000001');await page.locator('#manualAmountEnabled').check();await page.locator('#amountArs').fill('90071992547409,93');
-  await page.locator('#movementType').fill('standard');await page.locator('#legalInstrument').fill('Resolución QA 2026');await page.locator('#observation').fill('Fundamento sintético completo');
+  /* «Tipo de movimiento» is a list in plain Spanish now; its optional block may be folded. */await page.locator('#movementType').evaluate(e=>{const fold=e.closest('details');if(fold)fold.open=true;});await page.locator('#movementType').selectOption('standard');await page.locator('#legalInstrument').fill('Resolución QA 2026');await page.locator('#observation').fill('Fundamento sintético completo');
   await page.locator('#preflightButton').click();await page.locator('#nativeMonthlyReview:visible').waitFor();
   const reviewText=await page.locator('#nativeMonthlyReview').innerText();
   for(const value of ['2026-09','Mensual','44','9','2026-08','1,000001','90.071.992.547.409,93','standard','Resolución QA 2026','Fundamento sintético completo','Modo forzado'])assert.ok(reviewText.includes(value),value);
+  /* La revisión se lee con nombres: el concepto y el centro de costo llevan su denominación, no sólo el código. */for(const value of ['44 · MAYOR DEDICACION','9 · Cultura'])assert.ok(reviewText.includes(value),value);checks.push('native review reads the concept and the cost centre by name, not by code alone');
   const beforeReview=posts.length;await page.locator('#prepareButton').evaluate(node=>node.dispatchEvent(new Event('click')));assert.equal(posts.length,beforeReview);
   assert.equal(await page.locator('#nativeMonthlyReviewConfirm').isChecked(),false);
   await page.locator('#nativeMonthlyReviewConfirm').check();await page.locator('#conceptSourceId').fill('45');assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);assert.equal(await page.locator('#prepareButton').isDisabled(),true);
@@ -253,18 +256,21 @@ try{
   // A late fresh subject read cannot authorize the first write after hiding.
   holdEmployee=true;const beforeHidden=posts.length;await page.locator('#prepareButton').click();await page.waitForFunction(()=>document.body.dataset.busy==='true');
   for(let i=0;i<120&&!releaseEmployee;i++)await page.waitForTimeout(10);assert.ok(releaseEmployee);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});releaseEmployee();releaseEmployee=null;
-  await page.waitForTimeout(80);assert.equal(posts.length,beforeHidden);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
+  await page.waitForTimeout(80);assert.equal(posts.length,beforeHidden);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);assert.equal(await page.locator('#entrySection').isHidden(),true);const readsWhileHidden=bootstrapReads;await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
   checks.push('hiding during the fresh identity read clears the review and prevents a late first POST');
+  // Volver a la página consulta de nuevo sola (acceso y lotes): nadie tiene que tocar «Actualizar», y no se envía nada.
+  await page.locator('#entrySection:visible').waitFor();assert.equal(bootstrapReads,readsWhileHidden+1);assert.equal(posts.length,beforeHidden);assert.equal(await page.getByText('Volvé a consultar para continuar').count(),0);assert.equal(await page.locator('#nativeMonthlyReview').isVisible(),false);
+  checks.push('returning to the page reads the access and the lots again by itself, without a write and without restoring the withdrawn review');
   nominal=true;await open();holdEmployee=true;await page.locator('#nativeMonthlyRefresh').click();
   await page.waitForFunction(()=>document.body.dataset.busy==='true');deny=true;
   // Trigger a newer authority read while the employee lookup remains in flight.
   await page.evaluate(()=>document.querySelector('#refreshButton').dispatchEvent(new Event('click')));
-  await page.locator('#messageHost').filter({hasText:'No pudimos cargar'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
+  await page.locator('#messageHost').filter({hasText:'No pudimos consultar los lotes anteriores'}).waitFor();assert.ok(releaseEmployee);releaseEmployee();
   await page.waitForFunction(()=>document.body.dataset.busy!=='true');
   assert.equal(await page.locator('#nativeMonthlySubject').innerText(),'');assert.equal(await page.locator('#prepareButton').isDisabled(),true);
   checks.push('late employee response cannot restore nominal identity after a newer denied authority read');
   deny=false;directory=true;nominal=true;prepare=true;actor='maker';current=true;currentSubject=clone(original);batches.clear();
-  const openWithoutContract=async()=>{const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);await page.goto(target.href);await page.locator('#preflightButton:enabled').waitFor();};
+  const openWithoutContract=async()=>{const target=published?build.url('novedades-nomina.html'):new URL('/novedades-nomina.html',origin);await page.goto(target.href);await openNoveltyReferences(page);await page.locator('#preflightButton:enabled').waitFor();};
   const searchDirectory=async(button)=>{await page.locator(button).click();const dialog=page.locator('#employeePicker');await dialog.locator('input[type=search]').fill('QA');await dialog.locator('button[type=submit]').click();await dialog.locator('.picker-row').first().waitFor();return dialog;};
   await openWithoutContract();await page.locator('#periodMonth').fill('2026-10');await page.locator('#conceptSourceId').fill('95');await page.locator('#quantityDecimal').fill('100');
   const beforeName=posts.length;

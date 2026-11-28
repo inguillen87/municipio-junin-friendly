@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "operation": "review",
+    "contractId": "f1000000-0000-4000-8000-000000000002",
+    "proposalId": "f1000000-0000-4000-8000-000000000202",
+    "status": "rejected",
+    "proposalVersion": "8bdb2b103e6549d83a1c57ad08ac55991dde410df6c2d09d60bd83b0df653349",
+    "approvalId": "f1000000-0000-4000-8000-000000000302",
+    "reviewVersion": "ca3a87ee85d0aec921cabdd5b159f36a603c835140068362401100f132ac5846",
+    "supersededProposals": [],
+    "replayed": false,
+    "payrollModified": false,
+    "datesModified": false
+  }
+}

@@ -1,0 +1,122 @@
+CREATE FUNCTION public.own_receipt_print_facts_v6_candidate_v1(record_value jsonb,capture jsonb,bank_fact jsonb,frozen_at text)
+RETURNS jsonb LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+SET search_path=pg_catalog,public,pg_temp AS $v6facts$
+DECLARE cid text:=record_value->>'contractId';saved jsonb:=capture->'saved';payload jsonb:=capture->'payload';
+ input_value jsonb:=saved->'input';result_value jsonb:=saved->'result';population jsonb;employee jsonb;
+ component jsonb;employment_row jsonb;row_value jsonb;other_employee jsonb;definition jsonb;
+ units_value jsonb:='[]';concept jsonb;quantity jsonb;captured_quantities jsonb;destination jsonb;
+ start_value jsonb:='null';category_value jsonb:='null';employment_hash jsonb:='null';n integer;
+BEGIN
+ IF jsonb_typeof(record_value) IS DISTINCT FROM 'object' OR cid IS NULL
+ OR cid !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR coalesce(record_value->>'runId','') !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR coalesce(record_value->>'registrationId','') !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+ OR coalesce(input_value->>'period','') !~ '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'
+ OR coalesce(input_value->>'liquidationType' IN('monthly','first_fortnight','sac','vacation','supplementary','final','other'),false) IS NOT TRUE
+ OR jsonb_typeof(record_value->'inputVersion') IS DISTINCT FROM 'string'
+ OR coalesce(record_value->>'inputVersion' IN('own-payroll-input.v4','own-payroll-input.v5'),false) IS NOT TRUE
+ OR record_value->>'resultVersion' IS DISTINCT FROM replace(record_value->>'inputVersion','input','result')
+ OR capture->>'id' IS DISTINCT FROM record_value->>'runId'
+ OR jsonb_typeof(payload) IS DISTINCT FROM 'object' OR jsonb_typeof(saved) IS DISTINCT FROM 'object'
+ OR jsonb_typeof(input_value) IS DISTINCT FROM 'object' OR jsonb_typeof(result_value) IS DISTINCT FROM 'object'
+ OR payload->>'period' IS DISTINCT FROM input_value->>'period'
+ OR payload->>'liquidationType' IS DISTINCT FROM input_value->>'liquidationType'
+ OR result_value->>'period' IS DISTINCT FROM input_value->>'period'
+ OR result_value->>'liquidationType' IS DISTINCT FROM input_value->>'liquidationType'
+ OR input_value->>'version' IS DISTINCT FROM record_value->>'inputVersion'
+ OR result_value->>'version' IS DISTINCT FROM record_value->>'resultVersion'
+ OR capture->'payloadSha256' IS DISTINCT FROM record_value->'payloadSha256'
+ OR saved->'inputSha256' IS DISTINCT FROM record_value->'inputSha256'
+ OR saved->'resultSha256' IS DISTINCT FROM record_value->'resultSha256'
+ OR capture->>'payloadSha256' IS DISTINCT FROM public.own_run_hash_v1(payload)
+ OR saved->>'inputSha256' IS DISTINCT FROM public.own_run_hash_v1(input_value)
+ OR saved->>'resultSha256' IS DISTINCT FROM public.own_run_hash_v1(result_value)
+ OR jsonb_typeof(record_value->'concepts') IS DISTINCT FROM 'array'
+ OR jsonb_typeof(record_value->'receiptRowKeys') IS DISTINCT FROM 'array'
+ OR jsonb_typeof(record_value->'quantities') IS DISTINCT FROM 'array'
+ OR jsonb_typeof(result_value->'quantities') IS DISTINCT FROM 'array'
+ OR jsonb_typeof(payload#>'{population,employees}') IS DISTINCT FROM 'array'
+ OR frozen_at IS NULL OR frozen_at !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}Z$'
+ OR NOT pg_input_is_valid(frozen_at,'timestamp with time zone')
+ THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ IF to_char(frozen_at::timestamptz AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') IS DISTINCT FROM frozen_at
+ THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ population:=payload#>'{population,employees}';
+ SELECT count(*) INTO n FROM jsonb_array_elements(population) e WHERE e->>'contractId'=cid;
+ IF n<>1 THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ SELECT e INTO employee FROM jsonb_array_elements(population) e WHERE e->>'contractId'=cid;
+ IF employee->'employeeNumber' IS DISTINCT FROM record_value->'employeeNumber'
+ OR employee->'agreementCode' IS DISTINCT FROM record_value->'agreementCode'
+ OR employee->'departmentCode' IS DISTINCT FROM record_value->'departmentCode'
+ THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ SELECT coalesce(jsonb_agg(q ORDER BY ord),'[]') INTO captured_quantities
+ FROM jsonb_array_elements(result_value->'quantities') WITH ORDINALITY source_rows(q,ord) WHERE q->>'contractId'=cid;
+ IF captured_quantities IS DISTINCT FROM record_value->'quantities'
+ OR EXISTS(SELECT 1 FROM jsonb_array_elements(record_value->'quantities') q GROUP BY q->>'conceptCode' HAVING count(*)<>1)
+ OR EXISTS(SELECT 1 FROM jsonb_array_elements(record_value->'concepts') c GROUP BY c->>'code' HAVING count(*)<>1)
+ THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ FOR concept IN SELECT value FROM jsonb_array_elements(record_value->'concepts') LOOP
+  IF concept->>'nature' IS NULL OR concept->>'nature'='auxiliary' OR concept->>'code' IS NULL
+  OR concept->>'code' !~ '^[0-9]{1,9}$' OR NOT record_value->'receiptRowKeys' ? (cid||':concept:'||(concept->>'code'))
+  THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+  SELECT q INTO quantity FROM jsonb_array_elements(record_value->'quantities') q WHERE q->>'contractId'=cid AND q->>'conceptCode'=concept->>'code';
+  units_value:=units_value||jsonb_build_array(jsonb_build_object('rowKey',cid||':concept:'||(concept->>'code'),'quantity',coalesce(quantity,'null')));
+ END LOOP;
+ IF jsonb_array_length(units_value)<>jsonb_array_length(record_value->'receiptRowKeys') THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ IF payload->'sourceInventory' ? 'periodClassifications' THEN
+  component:=payload#>'{sourceInventory,periodClassifications}';
+  IF public.own_program_exact_v1(component,ARRAY['version','complete','total','rows']) IS NOT TRUE
+  OR component->>'version' IS DISTINCT FROM 'own-period-classification-capture.v1'
+  OR component->'complete' IS DISTINCT FROM 'true'::jsonb OR jsonb_typeof(component->'rows') IS DISTINCT FROM 'array'
+  OR component->'total' IS DISTINCT FROM to_jsonb(jsonb_array_length(population))
+  OR jsonb_array_length(component->'rows')<>jsonb_array_length(population)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(component->'rows') x GROUP BY x->>'contractId' HAVING count(*)<>1)
+  OR EXISTS(SELECT 1 FROM jsonb_array_elements(component->'rows') x GROUP BY x->>'registrationId' HAVING count(*)<>1)
+  THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+  FOR row_value IN SELECT value FROM jsonb_array_elements(component->'rows') LOOP
+   SELECT count(*) INTO n FROM jsonb_array_elements(population) e WHERE e->'contractId'=row_value->'contractId';
+   IF n<>1 THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+   SELECT e INTO other_employee FROM jsonb_array_elements(population) e WHERE e->'contractId'=row_value->'contractId';
+   BEGIN
+    PERFORM public.own_period_classification_capture_row_v1(row_value,other_employee,payload->>'period');
+   EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='OWN_CLOSE_CONTRACT_INVALID' THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;RAISE;
+   END;
+   IF row_value->>'contractId'=cid THEN employment_row:=row_value;END IF;
+  END LOOP;
+  IF employment_row IS NULL OR employment_row->'registrationId' IS DISTINCT FROM record_value->'registrationId'
+  THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+  definition:=employment_row->'definition';start_value:=definition->'startDate';category_value:=definition->'categoryCode';
+  employment_hash:=to_jsonb(public.own_run_hash_v1(component));
+ END IF;
+ IF public.own_program_exact_v1(bank_fact,ARRAY['paymentDestination','bankConfigurationVersion','bankApprovalId']) IS NOT TRUE
+ THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ destination:=bank_fact->'paymentDestination';
+ IF destination='null'::jsonb THEN
+  IF bank_fact->'bankConfigurationVersion' IS DISTINCT FROM 'null'::jsonb OR bank_fact->'bankApprovalId' IS DISTINCT FROM 'null'::jsonb
+  THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ ELSE
+  IF public.own_program_exact_v1(destination,ARRAY['bankLabel','accountType','accountNumberMasked','currency','referenceDate']) IS NOT TRUE
+  OR NOT public.own_receipt_text_v1(destination->'bankLabel',1,160)
+  OR (destination->'accountType' IS DISTINCT FROM 'null'::jsonb AND
+    (jsonb_typeof(destination->'accountType') IS DISTINCT FROM 'string' OR coalesce(destination->>'accountType' IN('CA','CC'),false) IS NOT TRUE))
+  OR jsonb_typeof(destination->'currency') IS DISTINCT FROM 'string'
+  OR coalesce(destination->>'currency' IN('ARS','USD'),false) IS NOT TRUE OR NOT public.own_bank_accounts_day_v1(destination->'referenceDate')
+  OR (destination->'accountNumberMasked' IS DISTINCT FROM 'null'::jsonb AND
+    (NOT public.own_receipt_text_v1(destination->'accountNumberMasked',1,40)
+     OR CASE WHEN char_length(destination->>'accountNumberMasked')<=4 THEN
+       destination->>'accountNumberMasked' IS DISTINCT FROM repeat('*',char_length(destination->>'accountNumberMasked'))
+      ELSE left(destination->>'accountNumberMasked',char_length(destination->>'accountNumberMasked')-4)
+       IS DISTINCT FROM repeat('*',char_length(destination->>'accountNumberMasked')-4) END))
+  OR jsonb_typeof(bank_fact->'bankConfigurationVersion') IS DISTINCT FROM 'string'
+  OR bank_fact->>'bankConfigurationVersion' !~ '^[a-f0-9]{64}$'
+  OR jsonb_typeof(bank_fact->'bankApprovalId') IS DISTINCT FROM 'string'
+  OR bank_fact->>'bankApprovalId' !~ '^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$'
+  THEN RAISE EXCEPTION 'OWN_RECEIPT_CONTRACT_INVALID';END IF;
+ END IF;
+ RETURN jsonb_build_object('version','own-receipt-print-facts.v1','frozenAt',frozen_at,'units',units_value,
+  'employmentStartDate',start_value,'classification',jsonb_build_object('categoryCode',category_value,'categoryLabel',NULL,'jobTitle',NULL,'positionStructure',NULL),
+  'paymentDestination',destination,'sources',jsonb_build_object('runId',record_value->>'runId','payloadSha256',record_value->>'payloadSha256',
+  'inputSha256',record_value->>'inputSha256','resultSha256',record_value->>'resultSha256','employmentEvidenceSha256',employment_hash,
+  'bankConfigurationVersion',bank_fact->'bankConfigurationVersion','bankApprovalId',bank_fact->'bankApprovalId'));
+END $v6facts$;

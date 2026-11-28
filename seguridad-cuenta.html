@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/assets/identity-security.css">
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <script src="assets/role-label.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#securityWorkspace">Saltar a seguridad</a>
@@ -27,13 +28,13 @@
   <main id="securityWorkspace" tabindex="-1">
     <div class="security-layout">
       <section class="context-panel" aria-labelledby="pageTitle">
-        <p class="eyebrow">Cuenta · control personal</p>
-        <h1 id="pageTitle">Tu acceso, explicado y verificable.</h1>
-        <p class="lead">Revisá el ámbito institucional informado por el servidor, protegé la cuenta con MFA y cerrá sesiones que ya no reconozcas.</p>
+        <p class="eyebrow">Tu cuenta</p>
+        <h1 id="pageTitle">Seguridad de tu cuenta</h1>
+        <p class="lead">Mirá con qué permisos entrás, activá el código de verificación para proteger tu cuenta y cerrá las sesiones que no reconozcas.</p>
         <ul class="boundary-list" aria-label="Límites del centro de seguridad">
-          <li><strong>Permisos de solo lectura</strong><span>El tenant, el rol y las capacidades vienen de la política vigente. No se pueden ampliar desde esta pantalla.</span></li>
-          <li><strong>Sesiones revocables</strong><span>Se muestra una descripción normalizada y una ubicación aproximada; nunca la IP completa ni el user-agent crudo.</span></li>
-          <li><strong>Recuperación limitada</strong><span>Los códigos ya emitidos no pueden volver a visualizarse. Si se agotan, interviene un administrador autorizado.</span></li>
+          <li><strong>Tus permisos no se cambian acá</strong><span>El rol y los permisos los define quien administra los accesos del municipio. Desde esta pantalla sólo se consultan.</span></li>
+          <li><strong>Podés cerrar sesiones</strong><span>De cada sesión se muestra el tipo de dispositivo y una ubicación aproximada, nunca la dirección exacta de conexión.</span></li>
+          <li><strong>Códigos de respaldo</strong><span>Los códigos ya emitidos no pueden volver a visualizarse. Si se terminan, un administrador autorizado te genera nuevos.</span></li>
         </ul>
       </section>
 
@@ -46,17 +47,17 @@
 
         <div id="securityContent" hidden>
           <section class="card" aria-labelledby="accessTitle">
-            <header class="card-head"><h2 id="accessTitle">Identidad y alcance efectivo</h2><p>Proyección de solo lectura publicada por la API de identidad para esta sesión.</p></header>
+            <header class="card-head"><h2 id="accessTitle">Con qué permisos entraste</h2><p>Tu cuenta, tu municipio y tu rol en esta sesión. Sólo consulta.</p></header>
             <div class="card-body">
               <dl class="identity-summary" id="identitySummary"></dl>
-              <p class="field-label" style="margin-top:20px">Capacidades efectivas</p>
-              <ul class="capability-list" id="capabilityList"></ul>
-              <div class="notice warning" id="accessBoundary" style="margin-top:20px;margin-bottom:0"><strong>Sin capacidades informadas.</strong> El sistema no presume permisos cuando falta el contrato de acceso.</div>
+              <details class="capability-details" style="margin-top:20px"><summary class="field-label" style="cursor:pointer">Ver la lista técnica de permisos (para soporte)</summary>
+              <ul class="capability-list" id="capabilityList" style="margin-top:12px"></ul></details>
+              <div class="notice warning" id="accessBoundary" style="margin-top:20px;margin-bottom:0"><strong>No hay permisos informados para esta sesión.</strong> El sistema no da por hecho ningún permiso: pedile a quien administra los accesos que los revise.</div>
             </div>
           </section>
 
           <section class="card" aria-labelledby="mfaTitle">
-            <header class="card-head"><h2 id="mfaTitle">Segundo factor</h2><p>Verificación adicional obligatoria para funciones privilegiadas o restringidas.</p></header>
+            <header class="card-head"><h2 id="mfaTitle">Código de verificación</h2><p>Un segundo paso al entrar, además de la contraseña. Es obligatorio para las funciones más sensibles.</p></header>
             <div class="card-body">
               <div class="notice" id="mfaState"><strong>Estado pendiente.</strong> Esperando la política de la cuenta.</div>
               <div id="mfaOverview">
@@ -97,7 +98,7 @@
           </section>
 
           <section class="card" aria-labelledby="sessionsTitle">
-            <header class="card-head"><h2 id="sessionsTitle">Sesiones activas</h2><p>Dispositivos autorizados informados por el registro central. Revocar una sesión exige versión vigente y queda auditado.</p></header>
+            <header class="card-head"><h2 id="sessionsTitle">Sesiones abiertas</h2><p>Dispositivos donde tu cuenta está abierta. Cerrar una sesión queda registrado.</p></header>
             <div class="card-body">
               <div class="notice warning" id="sessionRegistryBlocked" hidden><strong>Registro no disponible.</strong> La revocación permanece bloqueada hasta que el backend confirme el registro central.</div>
               <ul class="session-list" id="sessionList"></ul>
@@ -198,6 +199,14 @@
       wrapper.append(term, description); container.appendChild(wrapper);
     }
 
+    // El servidor informa el rol con su clave interna: se muestra con nombre legible y la clave queda al lado para soporte.
+    function roleName(key) {
+      var raw = text(key, '');
+      if (!raw) return 'No informado';
+      var label = (window.MuniControlRoleLabel || function (value) { return value; })(raw);
+      return label === raw ? raw : label + ' (' + raw + ')';
+    }
+
     function renderAccess(bootstrap) {
       var access = bootstrap && bootstrap.access && typeof bootstrap.access === 'object' ? bootstrap.access : {};
       var tenant = access.tenant && typeof access.tenant === 'object' ? access.tenant : {};
@@ -205,9 +214,9 @@
       account.access = access;
       var summary = document.getElementById('identitySummary'); summary.replaceChildren();
       appendFact(summary, 'Cuenta', text(user.displayName, text(user.email, 'Sesión autenticada')));
-      appendFact(summary, 'Gobierno', text(tenant.slug, text(tenant.id, 'Ámbito no informado')));
-      appendFact(summary, 'Rol de tenant', text(tenant.roleKey, 'No informado'));
-      appendFact(summary, 'Rol de plataforma', Array.isArray(access.platformRoles) && access.platformRoles.length ? access.platformRoles.join(', ') : 'Sin rol global informado');
+      appendFact(summary, 'Municipio', text(tenant.slug, text(tenant.id, 'No informado')));
+      appendFact(summary, 'Tu rol en el municipio', roleName(tenant.roleKey));
+      appendFact(summary, 'Rol de administración general', Array.isArray(access.platformRoles) && access.platformRoles.length ? access.platformRoles.map(roleName).join(', ') : 'Ninguno');
       var capabilities = Array.isArray(tenant.capabilities) ? tenant.capabilities.filter(function (value) { return typeof value === 'string' && value.trim(); }) : [];
       var list = document.getElementById('capabilityList'); list.replaceChildren();
       capabilities.forEach(function (value) { var item = document.createElement('li'); item.textContent = value; list.appendChild(item); });

@@ -1,0 +1,57 @@
+/* Áreas de asistencia por cuenta, dentro de Administración. Usa los botones, campos y tablas de la página. */
+.aas{min-width:0;overflow-wrap:anywhere}
+.aas [hidden]{display:none!important}
+.aas section,.aas fieldset,.aas div{min-width:0}
+.aas fieldset{margin:0;padding:18px;border:1px solid var(--line,#d5dfe1);border-radius:6px;background:#fff}
+.aas fieldset:disabled{background:#f6f8f7}
+.aas legend{padding:0 6px;color:var(--navy,#123247);font-size:15px;font-weight:800}
+.aas label{display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--navy,#123247);font-size:12px;font-weight:800}
+.aas select,.aas textarea{width:100%;max-width:100%;min-width:0;min-height:44px;box-sizing:border-box;font-weight:400}
+.aas textarea{min-height:92px;resize:vertical}
+.aas button,.aas a.button{min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.aas :is(button,select,textarea,input,a):focus-visible{outline:3px solid #0f766e;outline-offset:2px}
+.aas-stack{display:grid;gap:18px}
+.aas-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.aas-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px}
+.aas-status{margin:0 0 4px;padding:12px 14px;border-left:4px solid #0f766e;border-radius:4px;background:#edf4f2;color:#244351;font-size:13px}
+.aas-status[data-state=blocked],.aas-status[data-state=unavailable],.aas-status[data-state=uncertain]{border-color:#9a610e;background:#fff7e7;color:#6c4e18}
+.aas-status[data-state=denied]{border-color:#973b3b;background:#fff1f0;color:#883333}
+.aas-status[data-state=success]{border-color:#19705e;background:#edf8f4;color:#155d4e}
+.aas-note{margin:8px 0 0;color:var(--muted,#5f7480);font-size:12px;line-height:1.5}
+.aas-warning{margin:10px 0 0;padding:10px 12px;border:1px solid #e3c78f;border-left:4px solid #9a610e;border-radius:4px;background:#fff7e7;color:#6c4e18;font-size:12px;line-height:1.5}
+.aas-boundary{padding:12px 14px;border:1px solid #bdd5d1;border-left:4px solid #0f766e;border-radius:6px;background:#edf4f2;color:#244351}
+.aas-boundary strong{display:block;color:var(--navy,#123247);font-size:13px}
+.aas-boundary p{margin:4px 0 0;font-size:12px;line-height:1.5}
+.aas-card{padding:18px;border:1px solid var(--line,#d5dfe1);border-radius:6px;background:#fff}
+.aas-card h3,.aas-confirmation h3{margin:0 0 6px;color:var(--navy,#123247);font-size:16px}
+.aas-table{margin-top:12px}
+.aas-table td{vertical-align:top;overflow-wrap:anywhere}
+.aas-row-note{display:block;margin-top:5px;color:#7a500e;font-size:11px;line-height:1.4}
+.aas-confirmation{padding:18px;border:2px solid #0f766e;border-radius:6px;background:#f5faf8}
+.aas-facts{display:grid;grid-template-columns:minmax(140px,1fr) minmax(0,2fr);gap:8px 16px;margin:12px 0;padding:12px 14px;border:1px solid #dfe9e7;border-radius:6px;background:#fff}
+.aas-facts dt{color:var(--muted,#5f7480);font-size:12px;font-weight:800}
+.aas-facts dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.aas .aas-check{flex-direction:row;align-items:flex-start;gap:12px;min-height:44px;padding:10px 0;font-weight:500;font-size:13px;line-height:1.5}
+.aas .aas-check input{flex:0 0 22px;width:22px;height:22px;margin:0;accent-color:#0f766e}
+.aas-receipt{margin:0;padding:14px;border:1px solid #a9d6c9;border-radius:6px;background:#edf8f4;color:#155d4e;font-size:13px}
+@media (max-width:820px){
+  .aas-grid{grid-template-columns:minmax(0,1fr)}
+}
+/* En el teléfono cada área es una tarjeta: la página ya convierte sus tablas con data-label; acá se asegura
+   lo mismo aunque el panel se monte fuera de ella, y que nada desborde a 320 px. */
+@media (max-width:620px){
+  .aas fieldset,.aas-card,.aas-confirmation{padding:13px}
+  .aas-actions{flex-direction:column;align-items:stretch}
+  .aas-actions button,.aas-actions a{width:100%}
+  .aas-facts{grid-template-columns:minmax(0,1fr);gap:3px}
+  .aas-facts dd{margin-bottom:9px}
+  .aas-table{padding:0;overflow:visible}
+  .aas-table table,.aas-table tbody,.aas-table tr,.aas-table td{display:block;width:100%}
+  .aas-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  .aas-table tbody tr[data-list-row]{margin-top:10px;padding:10px 12px;border:1px solid var(--line,#d5dfe1);border-radius:6px;background:#fff}
+  .aas-table td{display:grid;grid-template-columns:minmax(0,1fr);gap:2px;padding:6px 0;border-bottom:1px solid #e6ecec}
+  .aas-table td::before{content:attr(data-label);color:var(--muted,#5f7480);font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+  .aas-table td:last-child{border-bottom:0}
+  .aas-table td:last-child::before{content:""}
+  .aas-table td .button{width:100%}
+}

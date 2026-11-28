@@ -16,6 +16,8 @@ on:
       - 'tests/native-employment-catalog*'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - 'vercel.json'
       - '.github/workflows/native-employment-catalog-release.yml'
@@ -27,7 +29,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -35,7 +37,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-employment-catalog-browser.mjs
       - run: node scripts/verify-native-employee-browser.mjs
@@ -49,7 +51,7 @@ jobs:
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

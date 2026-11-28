@@ -1,15 +1,24 @@
-import { fixedBootstrap,fixedEmployee,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,
+import { fixedBootstrap,fixedEmployee,fixedEmployeesBatch,fixedList,fixedDetail,fixedReceipt,fixedExportData,fixedPrincipalKey,fixedCapability,fixedActorReady,
   fixedForm,fixedText,fixedPeriod,fixedState,fixedCoverage,fixedView,fixedMoney,fixedMoneyInput,fixedOriginLabel,fixedJunin638Data,fixedComparison,fixedDetailEqual,fixedSubjectEqual,FIXED_TYPES } from './payroll-fixed-novelties-model.js';
 import { fixedCsv,fixedXlsx } from './payroll-fixed-novelties-export.js';
+import {fixedBulkDraft,fixedBulkExists,fixedBulkPayload,fixedBulkTemplateXlsx,FIXED_BULK_MAX_ROWS} from './payroll-fixed-bulk-model.js';
+import {readSpreadsheetInput} from './spreadsheet-table-intake.js';
+import {nativeRoster,nativeRosterFilters} from './native-roster-model.js';
+import {countWords} from './count-words.js';
 import {junin638Txt,junin638Filename} from './payroll-junin-638.js';
 import {junin638Readiness,junin638FileReview} from './payroll-junin-638-review.js';
 import {createEmployeePicker} from './employee-picker.js';
-import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedReviewGroupEligible,fixedReviewGroupDraft,fixedGroupReceipt,fixedGroupUnchanged} from './payroll-fixed-groups-model.js';
+import {FIXED_CONCEPT_OPTIONS,FIXED_INSTRUMENT_OPTIONS,fixedConceptCode,fixedConceptGuess,fixedConceptHint,fixedConceptIsOwn,fixedConceptName,fixedConceptOption,fixedDayText} from './payroll-fixed-concepts.js';
+import {costCenterCode,costCenterDatalist,costCenterHint,costCenterText} from './grh-cost-centers.js';
+import {fixedGroupEligible,fixedGroupDraft,fixedCorrectionGroupDraft,fixedReviewGroupEligible,fixedReviewGroupDraft,fixedGroupReceipt,fixedGroupUnchanged,FIXED_GROUP_CHUNK_SIZE,fixedGroupChunks} from './payroll-fixed-groups-model.js';
 
 const ENDPOINT='/api/internal-payroll-fixed-novelties';
 const GROUP_ENDPOINT='/api/internal-payroll-fixed-groups';
 const CORRECTION_GROUP_ENDPOINT='/api/internal-payroll-fixed-correction-groups';
 const REVIEW_GROUP_ENDPOINT='/api/internal-payroll-fixed-review-groups';
+const canonNum=value=>typeof value==='string'&&/^[0-9]+$/.test(value)?value.replace(/^0+/,'')||'0':null;
+const GROUP_PAGE_SIZE=50;
+const BULK_PAGE_SIZE=100;
 const isGroupKind=kind=>['annulGroup','correctGroup','reviewGroup'].includes(kind);
 const groupEndpoint=kind=>kind==='reviewGroup'?REVIEW_GROUP_ENDPOINT:kind==='correctGroup'?CORRECTION_GROUP_ENDPOINT:GROUP_ENDPOINT;
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
@@ -19,13 +28,14 @@ const stamp=value=>dayLabel(value)+' · '+value.slice(11).replace('T',' ');
 const hasRead=caps=>['payroll.novelty.read','payroll.novelty.nominal.read'].every(c=>caps.has(c));
 function errorMessage(error){
   if(error.status===401)return 'La sesión venció. Ingresá nuevamente antes de continuar.';
-  if(error.code==='PAYROLL_FIXED_EMPLOYMENT_REQUIRED')return 'Falta verificar el vínculo laboral del operador. No se crean vínculos automáticamente.';
+  if(error.code==='PAYROLL_FIXED_EMPLOYMENT_REQUIRED')return 'Falta acreditar la identidad del operador para proponer o revisar.';
   if(error.status===403)return 'No tenés permiso vigente para esta operación. Se retiraron los datos consultados.';
   const messages={VERSION_CONFLICT:'Otra persona modificó el registro. Revisá la versión actual; tu propuesta se conserva.',PENDING_EXISTS:'Hay una propuesta pendiente. Consultala antes de preparar otro cambio.',
     OVERLAP:'La vigencia se superpone con otra novedad aprobada del mismo concepto, centro y tipo. Revisá ambas antes de aprobar.',IDENTITY_CHANGED:'Cambió la identidad del legajo. El borrador no se asociará a otra persona.',
-    MAKER_CHECKER_REQUIRED:'La revisión debe hacerla otra persona con permiso vigente.',EMPLOYMENT_REQUIRED:'Falta verificar el vínculo laboral del operador. No se crean vínculos automáticamente.',IDEMPOTENCY_REUSE:'La clave pertenece a otros datos. Verificá el intento antes de iniciar otra operación.',
+    MAKER_CHECKER_REQUIRED:'La revisión debe hacerla otra persona con permiso vigente.',EMPLOYMENT_REQUIRED:'Falta acreditar la identidad del operador para proponer o revisar.',IDEMPOTENCY_REUSE:'La clave pertenece a otros datos. Verificá el intento antes de iniciar otra operación.',
     SNAPSHOT_CHANGED:'Cambió el resultado consultado. Actualizá la consulta antes de exportar.',CONTRACT_DRIFT:'No se pudo verificar el archivo completo. Actualizá el registro antes de exportar.',SESSION_BUSY:'Hay otra operación en curso. Reintentá con los mismos datos.',
-    NOT_FOUND:'No se encontró el registro o legajo solicitado.',ROW_LIMIT:'El resultado supera el límite permitido. No se muestra una lista parcial.',CAPACITY_LIMIT:'No hay capacidad disponible para guardar. Los datos del formulario se conservan.',
+    NOT_FOUND:'No se encontró el registro o legajo solicitado.',LEGAJO_NOT_FOUND:'Legajo sin contrato activo.',LEGAJO_AMBIGUOUS:'El legajo tiene más de un contrato activo: elegí el contrato.',WITHDRAWN:'Alta retirada por corrección administrativa; consultá el historial.',JURISDICTION_REQUIRED:'Falta declarar la jurisdicción del agente antes de cargar novedades o liquidar.',
+    ROW_LIMIT:'El resultado supera el límite permitido. No se muestra una lista parcial.',CAPACITY_LIMIT:'No hay capacidad disponible para guardar. Los datos del formulario se conservan.',
     LEGACY_RECONCILIATION_REQUIRED:'Hay novedades fijas de un registro anterior pendientes de conciliar. No se guardaron cambios. Hace falta conciliar ese registro antes de continuar.',
     INVALID_PAYLOAD:'Revisá los datos informados. La propuesta se conserva.',DATES_INVALID:'Revisá las fechas de alta y vencimiento.',JUNIN638_DNI_REQUIRED:'El TXT 638 requiere DNI válido de 5 a 8 dígitos. Revisá los legajos observados.',JUNIN638_AMOUNT_REQUIRED:'El TXT 638 requiere un importe válido, no negativo y dentro del ancho del archivo receptor.'};
   const suffix=String(error.code||'').replace(/^PAYROLL_FIXED_/,'');
@@ -34,7 +44,7 @@ function errorMessage(error){
 function save(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type})),a=node('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
 function facts(value){
   const dl=node('dl',undefined,'fn-facts');
-  const entries=value?[['Concepto declarado',value.conceptSourceId],['Centro de costo',value.costCenterSourceId??'Sin informar'],['Tipo',FIXED_TYPES[value.payrollType]],
+  const entries=value?[['Concepto',fixedConceptName(value.conceptSourceId)],['Centro de costo',costCenterText(value.costCenterSourceId)],['Tipo',FIXED_TYPES[value.payrollType]],
     ['Unidades declaradas',value.quantityDecimal??'Sin informar'],['Importe declarado',fixedMoney(value.amountCents)],['Modo forzado',value.forced?'Sí · '+value.forcedReason:'No'],
     ['Alta',dayLabel(value.validFrom)],['Vencimiento',dayLabel(value.validTo)],['Instrumento',value.legalInstrument]]:[];
   for(const[label,text]of entries){const part=node('div');part.append(node('dt',label),node('dd',text));dl.append(part);}return dl;
@@ -46,19 +56,20 @@ function comparison(row,operation,values){
   const region=node('div',undefined,'fn-change-table');region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','Comparación completa de los diez campos de la novedad fija');
   const table=node('table'),caption=node('caption','Diez campos · última versión aprobada frente a la propuesta');table.append(caption);
   const head=node('thead'),tr=node('tr');for(const title of ['Campo','Última versión aprobada','Propuesta','Cambio']){const th=node('th',title);th.scope='col';tr.append(th);}head.append(tr);table.append(head);
-  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);for(const [title,value]of [['Última versión aprobada',field.before],['Propuesta',field.after],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
+  const body=node('tbody');for(const field of model.fields){const r=node('tr');r.dataset.fnChangeField=field.key;const label=node('th',field.label);label.scope='row';r.append(label);const shown=value=>field.key==='conceptSourceId'&&/^\d+$/.test(value)?fixedConceptName(value):field.key==='costCenterSourceId'&&/^\d+$/.test(value)?costCenterText(value):['validFrom','validTo'].includes(field.key)?fixedDayText(value):value;
+    for(const [title,value]of [['Última versión aprobada',shown(field.before)],['Propuesta',shown(field.after)],['Cambio',field.changed?'Cambia':'Se conserva']]){const cell=node('td',value);cell.dataset.label=title;r.append(cell);}body.append(r);}table.append(body);region.append(table);section.append(region);return section;
 }
 function reviewSource(row,decision){const source=node('section');source.dataset.fnReviewSource='';source.append(node('p',(row.pending.operation==='annul'?'Anulación propuesta':'Valores propuestos')+' · Revisión '+row.version,'fn-note'),comparison(row,row.pending.operation,row.pending.values),node('p','Motivo de la propuesta: '+row.pending.reason),node('p',decision==='reject'?'Rechazar conserva la última versión aprobada y registra el rechazo.':'Aprobar habilita únicamente control y exportación; no calcula haberes.','fn-note'));return source;}
 
 export function mountFixedNovelties(shell,onLock=()=>{}){
   if(!shell)return {setAccess(){},setExternalBusy(){},deny(){}};
   const host=shell.querySelector('[data-fixed-host]');let mounted=false,externalBusy=false,busy=false,stopped=false,seq=0,controller=null,reportedLock=false;
-  let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1;
+  let bootstrap=null,data=null,detail=null,editor=null,attempt=null,outerKey=null,access=new Set(),page=1,directoryCache=null;
   const groupIds=new Set(),reviewGroupIds=new Set();
   const $=s=>host.querySelector(s),available=()=>!stopped&&shell.isConnected&&shell.open&&!document.hidden;
   const can=cap=>fixedCapability(bootstrap,access,cap);
-  const allowedPrepare=()=>can('payroll.fixed.prepare')&&bootstrap.principal.employmentLinked;
-  const allowedReview=()=>can('payroll.fixed.approve')&&bootstrap.principal.employmentLinked;
+  const allowedPrepare=()=>can('payroll.fixed.prepare')&&fixedActorReady(bootstrap);
+  const allowedReview=()=>can('payroll.fixed.approve')&&fixedActorReady(bootstrap);
   let groupGateAllowed=false,reviewGroupGateAllowed=false;
   const groupAllowedPrepare=()=>allowedPrepare()&&groupGateAllowed;
   const groupAllowedReview=()=>allowedReview()&&reviewGroupGateAllowed;
@@ -78,10 +89,11 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     box.append(fields,node('p','Se generó el archivo; no se envió a AMARU. La aceptación por el receptor sigue pendiente.','fn-note'),node('p','55 bytes por registro. Separación CRLF, sin salto final: convención de MuniControl que debe contrastarse con un archivo aceptado por AMARU. El resumen no muestra DNI ni nombres.','fn-note'));box.hidden=false;
   }
   function clearConsulted(){clearTxtReview();
-    groupIds.clear();reviewGroupIds.clear();
+    groupIds.clear();reviewGroupIds.clear();directoryCache=null;
     bootstrap=null;data=null;detail=null;
     if(mounted){$('[data-fn-list]').replaceChildren();$('[data-fn-detail]').replaceChildren();$('[data-fn-detail]').hidden=true;$('[data-fn-count]').textContent='';$('[data-fn-pagination]').hidden=true;}
     if(editor){editor.subject=editor.subject?{contractId:editor.subject.contractId,legajo:editor.subject.legajo,identityToken:editor.subject.identityToken}:null;
+      if(editor.kind==='bulkPropose'){for(const row of editor.bulkRows||[])row.subject=null;editor.needsReview=true;editor.previewHost.hidden=true;}
       if(isGroupKind(editor.kind)){editor.groupRows=null;editor.needsReview=true;editor.form.querySelector('[data-fn-group-source]')?.replaceChildren();}
       editor.row=editor.row?{id:editor.row.id,version:editor.row.version}:null;editor.form.querySelector('[data-fn-subject]')?.replaceChildren();
       editor.form.querySelector('[data-fn-comparison]')?.replaceChildren();editor.preview=null;editor.form.querySelector('[data-fn-preview-result]')?.replaceChildren();
@@ -89,13 +101,17 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       editor.detailSnapshot=null;if(editor.reviewed)editor.reviewed.checked=false;
       editor.form.querySelector('h3').textContent='Propuesta local pendiente';}
   }
-  function deny(){seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
+  // Al ocultarse la pestaña la pantalla retira lo consultado. Si acá había un registro o un borrador a la vista, se anota
+  // para volver a consultarlo solo cuando el acceso se confirme de nuevo, sin que la persona tenga que pedirlo.
+  let restoreOnAccess=false;
+  function deny(){if(mounted&&shell.open&&(data||editor))restoreOnAccess=true;seq++;controller?.abort();picker?.close();busy=false;clearConsulted();status('Se retiraron los datos consultados. Verificá la sesión y los permisos para continuar.');if(mounted)controls();}
   function clearAll(){deny();editor?.form.reset();editor=null;attempt=null;if(mounted){$('[data-fn-editor]').replaceChildren();controls();}}
   function controls(){
     const locked=busy||Boolean(attempt);if(locked!==reportedLock){reportedLock=locked;onLock(locked);}
     if(!mounted)return;host.setAttribute('aria-busy',String(busy));
     host.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=busy||externalBusy);
     $('[data-fn-new]').hidden=!allowedPrepare();$('[data-fn-new]').disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt);
+    $('[data-fn-bulk-new]').hidden=!allowedPrepare();$('[data-fn-bulk-new]').disabled=$('[data-fn-new]').disabled;
     const groupButton=$('[data-fn-group-open]');if(groupButton){groupButton.hidden=!groupAllowedPrepare();groupButton.disabled=busy||externalBusy||Boolean(editor)||Boolean(attempt)||!groupIds.size;
       groupButton.textContent='Revisar '+groupIds.size+' para anular';const correctionButton=$('[data-fn-group-correct]');correctionButton.hidden=!groupAllowedPrepare();correctionButton.disabled=groupButton.disabled;correctionButton.textContent='Corregir '+groupIds.size+' seleccionadas';$('[data-fn-group-clear]').disabled=busy||externalBusy||Boolean(editor)||!groupIds.size;
       const matches=data?selected().rows:[],eligible=matches.filter(fixedGroupEligible);$('[data-fn-group-select]').textContent='Seleccionar '+eligible.length+' disponibles del filtro';
@@ -129,10 +145,50 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       const choose=editor.form.querySelector('[data-fn-choose]');if(choose){choose.hidden=!directoryAllowed;choose.disabled=locked||!directoryAllowed||!allowedPrepare()||Boolean(editor.row);}
       editor.form.querySelector('[data-fn-cancel]').disabled=busy||externalBusy||Boolean(attempt);
       const retry=editor.form.querySelector('[data-fn-retry]');retry.hidden=!attempt;retry.disabled=busy||externalBusy||!(attempt?.command==='review'?allowedReview():allowedPrepare());
-      if(isGroupKind(attempt?.command))retry.disabled=busy||externalBusy||!groupAuthority(attempt.command);
+      if(isGroupKind(attempt?.command)){retry.disabled=busy||externalBusy||!groupAuthority(attempt.command);retry.textContent=attempt.chunks?.length>1?'Continuar con lotes pendientes':'Reintentar el mismo envío';}
+      if(editor.kind==='bulkPropose'){
+        const frozen=locked||editor.completed;
+        editor.form.querySelectorAll('fieldset').forEach(f=>f.disabled=frozen);
+        editor.form.querySelector('[data-fn-bulk-verify]').disabled=frozen||!allowedPrepare()||!data;
+        const pick=editor.form.querySelector('[data-fn-bulk-pick]');if(pick)pick.disabled=frozen;
+        const tpl=editor.form.querySelector('[data-fn-bulk-template]');if(tpl)tpl.disabled=busy||externalBusy;
+        target.disabled=frozen||!allowedPrepare()||!editor.preview||!editor.reviewed.checked||editor.needsReview;
+        retry.textContent='Continuar con las propuestas pendientes';
+        retry.disabled=busy||externalBusy||!allowedPrepare()||!bootstrap||attempt?.principalKey!==fixedPrincipalKey(bootstrap);
+      }
     }
     if(detail){for(const name of ['correct','annul']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.canPropose||!allowedPrepare();}
       for(const name of ['approve','reject']){const b=$('[data-fn-'+name+']');if(b)b.disabled=busy||externalBusy||Boolean(editor)||!detail.record.pending?.canReview||!allowedReview();}}
+  }
+  async function loadNativeDirectory(){
+    if(!directoryAllowed)return null;
+    const key=bootstrap?fixedPrincipalKey(bootstrap):null;
+    if(directoryCache&&directoryCache.key===key&&Date.now()-directoryCache.at<60000)return directoryCache.data;
+    const envelope=await request({resource:'nativeroster',schema:'2',status:'all'},{},'/api/internal-data');
+    const roster=nativeRoster(envelope.data,nativeRosterFilters({status:'all'}));
+    const exactActive=new Map(),canonActive=new Map(),exactInactive=new Map(),canonInactive=new Map();
+    const pushMap=(map,k,val)=>{if(!k)return;const arr=map.get(k);if(arr)arr.push(val);else map.set(k,[val]);};
+    for(const r of roster.rows){
+      const leg=String(r.legajo||'').trim(),canon=canonNum(leg);
+      if(r.status==='active'){pushMap(exactActive,leg,r);if(canon)pushMap(canonActive,canon,r);}
+      else{pushMap(exactInactive,leg,r);if(canon)pushMap(canonInactive,canon,r);}
+    }
+    const indexed={roster,exactActive,canonActive,exactInactive,canonInactive};
+    directoryCache={at:Date.now(),key,data:indexed};
+    return indexed;
+  }
+  function findDirectoryLegajo(dir,rawLegajo){
+    if(!dir)return {kind:'fallback',matches:[]};
+    const raw=String(rawLegajo||'').trim(),canon=canonNum(raw);
+    const exact=dir.exactActive.get(raw)||[];
+    if(exact.length)return {kind:exact.length===1?'single':'ambiguous',matches:exact};
+    if(canon){
+      const byCanon=dir.canonActive.get(canon)||[];
+      if(byCanon.length)return {kind:byCanon.length===1?'single':'ambiguous',matches:byCanon};
+    }
+    const inact=(dir.exactInactive.get(raw)||[]).length||(canon&&(dir.canonInactive.get(canon)||[]).length);
+    if(inact)return {kind:'inactive',matches:[]};
+    return {kind:'fallback',matches:[]};
   }
   async function request(query,options={},endpoint=ENDPOINT){
     const activeController=controller;
@@ -154,10 +210,10 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     return next;
   }
   function currentPeriod(){const value=$('[data-fn-period]').value;return value?fixedPeriod(value):null;}
-  async function loadList(){
+  async function loadList(live=()=>true){
     if(!editor&&!attempt){groupIds.clear();reviewGroupIds.clear();}
     clearTxtReview();const period=currentPeriod();data=null;$('[data-fn-list]').replaceChildren();$('[data-fn-count]').textContent='';
-    data=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);page=1;renderList();
+    const next=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);if(!live())return;data=next;page=1;renderList();
   }
   function renderList(){
     if(!data)return;const view=selected(),pages=Math.max(1,Math.ceil(view.rows.length/20));page=Math.min(page,pages);
@@ -191,6 +247,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       const correct=button(r.approved?'Proponer corrección':'Preparar nueva propuesta','correct');correct.addEventListener('click',()=>openEditor(r,'set'));actions.append(correct);
       if(r.approved?.operation==='set'){const annul=button('Proponer anulación','annul');annul.addEventListener('click',()=>openEditor(r,'annul'));actions.append(annul);}}
     if(r.pending?.canReview&&allowedReview())for(const decision of ['approve','reject']){const b=button(decision==='approve'?'Revisar y aprobar':'Revisar y rechazar',decision);b.addEventListener('click',()=>openReview(r,decision));actions.append(b);}
+    else if(r.pending&&!r.pending.canReview&&allowedReview()){target.append(node('p','Esta propuesta la preparaste vos (o requiere otra membresía): debe aprobarla o rechazarla otra persona.','fn-note'));}
     const close=button('Cerrar detalle','close');close.addEventListener('click',()=>{if(editor)return;detail=null;renderDetail();});actions.append(close);target.append(actions);
     const history=node('details');history.dataset.fnHistory='';history.append(node('summary','Historial completo · '+detail.history.length+' propuesta(s)'));
     const entries=node('ol',undefined,'fn-history');for(const p of detail.history){const li=node('li');li.dataset.fnHistoryId=p.id;
@@ -200,6 +257,34 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   }
   async function openDetail(id){if(editor)return;await operation(async live=>{status('Consultando registro e historial…');detail=null;renderDetail();const next=fixedDetail(await request({resource:'detail',recordId:id}),id);if(!live())return;detail=next;renderDetail();status('Registro consultado. Una aprobación sólo habilita control y exportación.');});}
   function makeField(fields,key,label,type='text',max=500){const wrapper=node('label',label),input=node(type==='textarea'?'textarea':'input');if(type!=='textarea')input.type=type;input.dataset.fnField=key;input.name=key;input.autocomplete='off';input.maxLength=max;if(type==='date'){input.min='1900-01-01';input.max='2100-12-31';}wrapper.append(input);fields[key]=input;return wrapper;}
+  // El concepto se busca por nombre en una lista; el campo sigue aceptando el número. Lo que se guarda es el código.
+  let chooserSeq=0;
+  function conceptChooser(fields,{fillUnits=true}={}){
+    const input=fields.conceptSourceId,list=node('datalist'),hint=node('small','','fn-hint');list.id='fnConcepts'+(++chooserSeq);hint.dataset.fnConceptHint='';
+    for(const option of FIXED_CONCEPT_OPTIONS){const item=node('option');item.value=option.text;item.label=option.detail;list.append(item);}
+    input.inputMode='text';input.placeholder='Escribí el nombre: sindicato, seguro, cuota…';input.setAttribute('list',list.id);input.closest('label').append(list,hint);
+    const show=()=>{hint.textContent=fixedConceptHint(input.value);};
+    input.addEventListener('input',show);input.addEventListener('fn-concept-shown',show);
+    input.addEventListener('change',()=>{
+      if(fixedConceptCode(input.value)===null){const guess=fixedConceptGuess(input.value);if(guess)input.value=guess.text;}
+      const code=fixedConceptCode(input.value);
+      // Un dato fijo de la liquidación propia se informa con una unidad y sin importe: se completa si todavía está vacío.
+      if(fillUnits&&code&&fixedConceptIsOwn(code)&&!fields.quantityDecimal.value.trim()&&!fields.amountArs.value.trim())fields.quantityDecimal.value='1';
+      show();
+    });
+    show();
+  }
+  // El centro de costo también se elige por nombre; se guarda su código.
+  function costCenterChooser(input){
+    const list=costCenterDatalist('fnCostCenters'+(++chooserSeq),document),hint=node('small','','fn-hint');hint.dataset.fnCostHint='';
+    input.inputMode='text';input.maxLength=80;input.placeholder='Nombre o número: servicios públicos, 2…';input.setAttribute('list',list.id);input.closest('label').append(list,hint);
+    const show=()=>{hint.textContent=costCenterHint(input.value);};
+    input.addEventListener('input',show);input.addEventListener('change',()=>{const code=costCenterCode(input.value);if(code)input.value=code;show();});show();
+  }
+  function instrumentChooser(input){
+    const list=node('datalist');list.id='fnInstruments'+(++chooserSeq);for(const text of FIXED_INSTRUMENT_OPTIONS){const item=node('option');item.value=text;list.append(item);}
+    input.placeholder='Elegí el tipo de respaldo y completá el número o la fecha';input.setAttribute('list',list.id);input.closest('label').append(list);
+  }
   function editorShell(title){
     const form=node('form',undefined,'fn-editor');form.append(node('h3',title));const subject=node('p','','fn-note');subject.dataset.fnSubject='';form.append(subject);
     const feedback=node('p','','fn-status');feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');feedback.dataset.fnFormStatus='';
@@ -210,6 +295,431 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     actions.append(retry,cancel);form.addEventListener('submit',e=>e.preventDefault());
     $('[data-fn-editor]').replaceChildren(form);return {form,feedback,previewHost:preview,comparison,actions,subjectHost:subject};
   }
+  function bulkProgress(active){
+    const items=active.batch?.items||[],saved=items.filter(item=>item.saved).length;
+    return countWords(saved,'propuesta guardada','propuestas guardadas')+' de '+items.length+'.';
+  }
+  function setBulkProgress(active,done,total,label){
+    if(!active?.progressBar||!active?.progressText)return;
+    if(!total){active.progressBar.hidden=true;active.progressText.hidden=true;active.progressText.textContent='';return;}
+    active.progressBar.hidden=false;active.progressBar.max=total;active.progressBar.value=done;
+    active.progressText.hidden=false;active.progressText.textContent=label||'';
+  }
+  function syncEditableFromBulk(active,rows){
+    if(active.editableRows)return;
+    active.editableRows=rows.map(r=>({
+      number:r.number,
+      chosenContractId:r.chosenContractId||null,
+      cells:[
+        r.draft?.legajo??r.raw?.[0]??'',
+        r.draft?.values?.conceptSourceId??r.raw?.[1]??'',
+        r.draft?.values?.quantityDecimal??r.raw?.[2]??'',
+        r.draft?.values?.amountCents!==undefined&&r.draft?.values?.amountCents!==null?fixedMoneyInput(r.draft.values.amountCents):r.raw?.[3]??'',
+        r.draft?.values?.validFrom??r.raw?.[4]??'',
+        r.draft?.values?.validTo??r.raw?.[5]??'',
+        r.draft?.values?.legalInstrument??r.raw?.[6]??'',
+      ],
+    }));
+  }
+  function rowHasError(active,row){
+    const item=active.batch?.items.find(it=>it.number===row.number);
+    return Boolean(row.error||item?.error);
+  }
+  function renderBulk(active){
+    const rows=active.bulkRows||[],ready=rows.filter(row=>row.state==='ready'),existing=rows.filter(row=>row.state==='exists');
+    const errorCount=rows.filter(row=>rowHasError(active,row)).length,savedCount=(active.batch?.items||[]).filter(it=>it.saved).length;
+    if(!errorCount)active.filterErrors=false;
+    const baseVisible=active.filterErrors?rows.filter(row=>rowHasError(active,row)):rows;
+    const pages=Math.max(1,Math.ceil(baseVisible.length/BULK_PAGE_SIZE));
+    active.bulkPage=Math.min(Math.max(1,active.bulkPage||1),pages);
+    const pageSlice=pages>1?baseVisible.slice((active.bulkPage-1)*BULK_PAGE_SIZE,active.bulkPage*BULK_PAGE_SIZE):baseVisible;
+
+    const wrapper=node('div');
+    const summaryBar=node('div',undefined,'fn-bulk-summary');
+    summaryBar.append(node('p',`Total: ${rows.length} · Listas: ${ready.length} · Ya existen: ${existing.length} · Con errores: ${errorCount}`+(savedCount?` · Guardadas: ${savedCount}`:''),'fn-note'));
+    const barActions=node('div',undefined,'fn-actions');
+    if(errorCount>0){
+      const errBtn=button((active.filterErrors?'Ver todas las filas':'Solo errores')+' ('+errorCount+')','bulk-errors-only');
+      errBtn.addEventListener('click',()=>{active.filterErrors=!active.filterErrors;active.bulkPage=1;renderBulk(active);});
+      barActions.append(errBtn);
+    }
+    if(pages>1){
+      const prev=button('Anterior','bulk-prev'),info=node('span',`Página ${active.bulkPage} de ${pages}`,'fn-note'),next=button('Siguiente','bulk-next');
+      prev.disabled=active.bulkPage<=1;next.disabled=active.bulkPage>=pages;
+      prev.addEventListener('click',()=>{if(active.bulkPage>1){active.bulkPage--;renderBulk(active);}});
+      next.addEventListener('click',()=>{if(active.bulkPage<pages){active.bulkPage++;renderBulk(active);}});
+      barActions.append(prev,info,next);
+    }
+    if(barActions.children.length)summaryBar.append(barActions);
+    wrapper.append(summaryBar);
+
+    const titles=['Fila','Legajo','Nombre','Concepto','Unidades','Importe','Alta','Vencimiento','Instrumento','Estado'];
+    const table=node('table'),head=node('thead'),heading=node('tr');
+    table.append(node('caption','Revisión completa de la planilla'));
+    for(const title of titles){const cell=node('th',title);cell.scope='col';heading.append(cell);}head.append(heading);table.append(head);
+    const body=node('tbody');
+    const visibleMain=active.filterErrors?pageSlice:pageSlice.filter(row=>row.state!=='exists');
+    const visibleExisting=active.filterErrors?[]:pageSlice.filter(row=>row.state==='exists');
+    for(const row of visibleMain)appendRow(row,body);
+    table.append(body);
+    if(visibleExisting.length){const group=node('tbody');const title=node('tr'),cell=node('th','Ya existen en el registro consultado · no se enviarán');cell.colSpan=titles.length;title.append(cell);group.append(title);visibleExisting.forEach(row=>appendRow(row,group));table.append(group);}
+
+    function appendRow(row,parent){
+      const values=row.draft?.values,raw=row.raw||[],tr=node('tr');tr.dataset.fnBulkRow=String(row.number);
+      const item=active.batch?.items.find(it=>it.number===row.number);
+      const hasErr=Boolean(row.error||item?.error);
+      if(hasErr)tr.className='fn-row-error';
+      const state=item?.saved?'Guardada para revisión':row.error||item?.error||(row.state==='exists'?'Ya existe':row.state==='ready'?'Lista para guardar':'Falta verificar el legajo');
+      const cells=[String(row.number),row.draft?.legajo||raw[0]||'',row.subject?.employeeName||'Nombre no informado',values?fixedConceptName(values.conceptSourceId):raw[1]||'',values?.quantityDecimal??raw[2]??'Sin informar',values?fixedMoney(values.amountCents):raw[3]||'Sin informar',values?dayLabel(values.validFrom):raw[4]||'',values?dayLabel(values.validTo):raw[5]||'',values?.legalInstrument||raw[6]||'',state];
+      cells.forEach((text,i)=>{
+        const cell=node('td',text===''?'Sin informar':text);cell.dataset.label=titles[i];
+        if(i===9&&!item?.saved&&!active.batch&&!active.completed){
+          if(row.ambiguousMatches?.length>1){
+            const pickWrap=node('div'),sel=node('select');sel.dataset.fnBulkContract='';
+            sel.append(Object.assign(node('option','Elegí el contrato activo…'),{value:''}));
+            for(const m of row.ambiguousMatches){
+              const opt=node('option',`Legajo ${m.legajo} · ${m.name||'Sin nombre'}${m.sector?' · '+m.sector:''}`);
+              opt.value=m.contractId;if(row.chosenContractId===m.contractId)opt.selected=true;sel.append(opt);
+            }
+            sel.addEventListener('change',()=>{
+              if(!sel.value)return;
+              syncEditableFromBulk(active,rows);
+              const entry=active.editableRows.find(e=>e.number===row.number);
+              if(entry)entry.chosenContractId=sel.value;
+              reverifyBulkRows(active);
+            });
+            pickWrap.append(sel);cell.append(pickWrap);
+          }
+          if(row.editingRow){
+            const inline=node('div',undefined,'fn-inline-edit');
+            const editLabels=[['Legajo',0],['Concepto',1],['Unidades',2],['Importe',3],['Alta',4],['Vencimiento',5],['Instrumento',6]];
+            const editInputs=[];
+            for(const [lbl,idx]of editLabels){
+              const l=node('label',lbl),inp=node('input');inp.type='text';
+              inp.value=idx===3&&values?.amountCents!==undefined&&values?.amountCents!==null?fixedMoneyInput(values.amountCents):(idx===4&&values?.validFrom?values.validFrom:idx===5&&values?.validTo?values.validTo:idx===6&&values?.legalInstrument?values.legalInstrument:idx===1&&values?.conceptSourceId?values.conceptSourceId:idx===2&&values?.quantityDecimal!==undefined&&values?.quantityDecimal!==null?values.quantityDecimal:(raw[idx]??''));
+              l.append(inp);inline.append(l);editInputs.push(inp);
+            }
+            const applyBtn=button('Aplicar y re-verificar','bulk-apply-row',true),cancelEdit=button('Cancelar edición','bulk-cancel-row');
+            applyBtn.addEventListener('click',()=>{
+              syncEditableFromBulk(active,rows);
+              const entry=active.editableRows.find(e=>e.number===row.number);
+              if(entry){
+                const prevLeg=String(entry.cells[0]||'').trim();
+                active.subjectCache.byLegajo.delete(prevLeg);
+                if(entry.chosenContractId)active.subjectCache.byContract.delete(entry.chosenContractId);
+                entry.cells=editInputs.map(el=>el.value.trim());
+                active.subjectCache.byLegajo.delete(entry.cells[0]);
+                entry.chosenContractId=null;
+              }
+              row.editingRow=false;
+              reverifyBulkRows(active);
+            });
+            cancelEdit.addEventListener('click',()=>{row.editingRow=false;renderBulk(active);});
+            inline.append(applyBtn,cancelEdit);cell.append(inline);
+          }else{
+            const rowActions=node('div',undefined,'fn-actions');
+            const editBtn=button('Editar fila','bulk-edit-row'),delBtn=button('Quitar','bulk-remove-row');
+            editBtn.addEventListener('click',()=>{row.editingRow=true;renderBulk(active);});
+            delBtn.addEventListener('click',()=>{
+              syncEditableFromBulk(active,rows);
+              active.editableRows=active.editableRows.filter(e=>e.number!==row.number);
+              if(!active.editableRows.length){active.bulkRows=[];active.preview=null;active.reviewed.checked=false;active.previewHost.replaceChildren();active.previewHost.hidden=true;active.feedback.textContent='Quitaste todas las filas. Cargá o pegá nuevas filas.';controls();return;}
+              reverifyBulkRows(active);
+            });
+            rowActions.append(editBtn,delBtn);cell.append(rowActions);
+          }
+        }
+        tr.append(cell);
+      });
+      parent.append(tr);
+    }
+    const region=node('div',undefined,'fn-change-table');region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label','Todas las novedades de la planilla');region.append(table);
+    wrapper.append(region);
+    active.previewHost.replaceChildren(wrapper);active.previewHost.hidden=false;
+    active.confirmText.textContent=(ready.length===1?'Revisé la novedad y su respaldo.':'Revisé las '+countWords(ready.length,'novedad','novedades')+' y sus respaldos.')+' Cada propuesta requiere revisión de otra persona.';
+    active.form.querySelector('[data-fn-save]').textContent='Guardar '+countWords(ready.length,'propuesta','propuestas')+' para revisión';
+  }
+  function openBulkEditor(){
+    if(editor||attempt||busy||externalBusy||!available()||!allowedPrepare()||!data)return;
+    groupIds.clear();reviewGroupIds.clear();
+    const box=editorShell('Cargar varias novedades desde planilla o archivo'),fields={},fieldset=node('fieldset');
+    fieldset.append(node('legend','Cargar archivo o pegar filas (hasta '+FIXED_BULK_MAX_ROWS+')'),
+      node('p','Subí un archivo Excel (.xlsx primera hoja), CSV (; o ,) o TXT (tabulado). Encabezados flexibles en cualquier orden: Legajo, Concepto, Unidades, Importe, Fecha de alta, Vencimiento, Instrumento.','fn-note'));
+    const dropzone=node('div',undefined,'fn-dropzone');dropzone.dataset.fnBulkDropzone='';
+    const fileInput=node('input');fileInput.type='file';fileInput.accept='.xlsx,.csv,.txt';fileInput.className='fn-visually-hidden';fileInput.dataset.fnBulkFile='';
+    const dropActions=node('div',undefined,'fn-actions');
+    const pickBtn=button('Elegir archivo Excel, CSV o TXT','bulk-pick',true);
+    const tplBtn=button('Descargar plantilla Excel','bulk-template');
+    const fileInfo=node('p','Soltá un archivo acá o elegilo desde tu equipo. Fechas: aaaa-mm-dd, dd/mm/aaaa o fecha de Excel. Un dato ausente no equivale a cero.','fn-note');fileInfo.dataset.fnBulkFileInfo='';
+    dropActions.append(pickBtn,tplBtn);dropzone.append(dropActions,fileInput,fileInfo);fieldset.append(dropzone);
+    fieldset.append(makeField(fields,'sheet','O pegá filas manualmente (opcional)','textarea',2000000));fields.sheet.rows=6;
+    const typeLabel=node('label','Tipo de liquidación para toda la carga'),type=node('select');type.dataset.fnField='payrollType';
+    for(const [value,title]of Object.entries(FIXED_TYPES))type.append(Object.assign(node('option',title),{value}));type.value='monthly';fields.payrollType=type;typeLabel.append(type);fieldset.append(typeLabel);
+    fieldset.append(makeField(fields,'legalInstrument','Instrumento que respalda las novedades','text',300),makeField(fields,'reason','Motivo de la propuesta para todo el conjunto','textarea',500));instrumentChooser(fields.legalInstrument);
+    fieldset.append(node('p','El instrumento común se usa cuando falta en la fila. No se informa centro de costo salvo columna dedicada. Esta carga no admite modo forzado: si una novedad lo necesita, usá el formulario individual.','fn-note'));
+    const verify=button('Verificar legajos y revisar','bulk-verify',true);fieldset.append(verify);
+    const progressBar=node('progress',undefined,'fn-progress');progressBar.dataset.fnBulkProgress='';progressBar.hidden=true;
+    const progressText=node('p','','fn-note');progressText.dataset.fnBulkProgressText='';progressText.hidden=true;
+    const confirmation=node('fieldset'),label=node('label',undefined,'fn-check'),reviewed=node('input'),confirmText=node('span','Revisé todas las novedades.');reviewed.type='checkbox';reviewed.dataset.fnBulkReviewed='';label.append(reviewed,confirmText);confirmation.append(label);
+    const send=button('Guardar propuestas para revisión','save',true);box.actions.prepend(send);
+    box.form.append(fieldset,progressBar,progressText,box.previewHost,confirmation,node('p','Cada propuesta queda pendiente de otra persona. Esta carga no aprueba nada, no calcula haberes ni modifica GRH. Las propuestas se guardan por serie segura; si falla un envío, podés continuar con las pendientes.','fn-note'),box.feedback,box.actions);
+    editor={...box,kind:'bulkPropose',fields,fileInput,fileInfo,progressBar,progressText,reviewed,confirmText,bulkRows:[],editableRows:null,parsedTable:null,subjectCache:{byContract:new Map(),byLegajo:new Map()},filterErrors:false,bulkPage:1,preview:null,needsReview:false,batch:null,completed:false,principalKey:fixedPrincipalKey(bootstrap)};
+    const active=editor;
+    const resetVerification=(keepFile=true)=>{
+      if(busy||attempt||editor!==active||active.completed)return;
+      active.preview=null;active.bulkRows=[];active.editableRows=null;active.filterErrors=false;active.bulkPage=1;
+      if(!keepFile){active.parsedTable=null;active.fileInfo.textContent='Pegado manual activo.';}
+      reviewed.checked=false;setBulkProgress(active,0,0,'');active.previewHost.replaceChildren();active.previewHost.hidden=true;
+      active.feedback.textContent='Los datos cambiaron. Volvé a verificar toda la planilla.';controls();
+    };
+    const handleBulkFile=async file=>{
+      if(!file||busy||attempt||editor!==active||active.completed)return;
+      try{
+        active.feedback.textContent='Leyendo archivo '+file.name+'…';
+        const parsed=await readSpreadsheetInput(file);
+        if(editor!==active)return;
+        active.parsedTable=parsed;active.editableRows=null;fields.sheet.value='';
+        active.fileInfo.textContent=`Archivo cargado: ${file.name} (${parsed.format.toUpperCase()}${parsed.sheetName?' · hoja '+parsed.sheetName:''} · ${parsed.rows.length} filas leídas).`;
+        resetVerification(true);
+        active.feedback.textContent='Archivo listo. Presioná Verificar legajos y revisar.';
+      }catch(error){
+        active.parsedTable=null;active.fileInfo.textContent='No se pudo leer el archivo seleccionado.';
+        active.feedback.textContent=error.message||'No se pudo leer el archivo.';
+      }
+    };
+    pickBtn.addEventListener('click',()=>fileInput.click());
+    fileInput.addEventListener('change',()=>{const f=fileInput.files?.[0];if(f)return handleBulkFile(f);});
+    dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.className='fn-dropzone is-dragover';});
+    dropzone.addEventListener('dragleave',()=>{dropzone.className='fn-dropzone';});
+    dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.className='fn-dropzone';const f=e.dataTransfer?.files?.[0];if(f)handleBulkFile(f);});
+    tplBtn.addEventListener('click',()=>{save(fixedBulkTemplateXlsx(),'municontrol_plantilla_novedades_fijas.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');status('Plantilla Excel descargada.');});
+    fields.sheet.addEventListener('input',()=>resetVerification(false));
+    for(const key of ['payrollType','legalInstrument','reason'])fields[key].addEventListener('input',()=>resetVerification(true));
+    reviewed.addEventListener('change',controls);verify.addEventListener('click',verifyBulk);send.addEventListener('click',prepareBulkSend);controls();fields.sheet.focus();
+  }
+  async function verifyBulkRowsCore(active,live,inputSource,chosenContractsByRow){
+    const records=data.rows,dir=directoryAllowed?await loadNativeDirectory():null;
+    if(!live()||editor!==active)return;
+    const options={payrollType:active.fields.payrollType.value,legalInstrument:active.fields.legalInstrument.value,reason:active.fields.reason.value};
+    active.bulkRows=fixedBulkDraft(inputSource,{...options,allowNativeLegajo:raw=>{const found=findDirectoryLegajo(dir,raw);return found.kind!=='fallback';}});
+    if(chosenContractsByRow)for(const row of active.bulkRows){if(chosenContractsByRow.has(row.number))row.chosenContractId=chosenContractsByRow.get(row.number);}
+
+    const contractQueue=[],legajoQueue=[];
+    const seenContracts=new Set(),seenLegajos=new Set();
+    const {byContract,byLegajo}=active.subjectCache;
+    for(const row of active.bulkRows){
+      if(row.error){row.state='error';continue;}
+      if(row.chosenContractId){
+        if(!byContract.has(row.chosenContractId)&&!seenContracts.has(row.chosenContractId)){seenContracts.add(row.chosenContractId);contractQueue.push(row.chosenContractId);}
+        continue;
+      }
+      const legajo=row.draft.legajo,found=findDirectoryLegajo(dir,legajo);
+      row.directoryMatch=found;
+      if(found.kind==='single'){
+        const cid=found.matches[0].contractId;row.chosenContractId=cid;
+        if(!byContract.has(cid)&&!seenContracts.has(cid)){seenContracts.add(cid);contractQueue.push(cid);}
+      }else if(found.kind==='ambiguous'){
+        row.ambiguousMatches=found.matches;row.error='Fila '+row.number+': El legajo tiene más de un contrato activo: elegí el contrato.';row.state='error';
+      }else if(found.kind==='inactive'){
+        row.error='Fila '+row.number+': Legajo sin contrato activo.';row.state='error';
+      }else{
+        if(!byLegajo.has(legajo)&&!seenLegajos.has(legajo)){seenLegajos.add(legajo);legajoQueue.push(legajo);}
+      }
+    }
+
+    const totalChecks=contractQueue.length+legajoQueue.length;
+    let doneChecks=0;
+    for(let i=0;i<contractQueue.length;i+=100){
+      if(!live()||editor!==active)return;
+      const chunk=contractQueue.slice(i,i+100);
+      setBulkProgress(active,doneChecks,totalChecks,`Verificando contratos activos (${doneChecks} de ${totalChecks})…`);
+      const batch=fixedEmployeesBatch(await request({resource:'employees',contracts:chunk.join(',')}),chunk);
+      if(!live()||editor!==active)return;
+      for(const item of batch.rows){
+        byContract.set(item.contractId,item.ok?{subject:item.subject}:{error:item.error});
+      }
+      doneChecks+=chunk.length;
+    }
+    for(const legajo of legajoQueue){
+      if(!live()||editor!==active)return;
+      setBulkProgress(active,doneChecks,totalChecks,`Verificando legajos (${doneChecks} de ${totalChecks})…`);
+      try{byLegajo.set(legajo,{subject:fixedEmployee(await request({resource:'employee',legajo}),legajo)});}
+      catch(error){if(!live())return;if([401,403].includes(error.status))throw error;byLegajo.set(legajo,{error:errorMessage(error)});}
+      doneChecks++;
+    }
+    if(!live()||editor!==active)return;
+    setBulkProgress(active,0,0,'');
+
+    const contractDuplicates=new Map();
+    for(const row of active.bulkRows){
+      if(row.error)continue;
+      const result=row.chosenContractId?byContract.get(row.chosenContractId):byLegajo.get(row.draft.legajo);
+      if(!result||result.error){row.error='Fila '+row.number+': '+(result?.error||'Legajo sin contrato activo.');row.state='error';continue;}
+      row.subject=result.subject;
+      const resolvedKey=JSON.stringify([row.subject.contractId,row.draft.values.conceptSourceId,row.draft.values.payrollType]);
+      const prev=contractDuplicates.get(resolvedKey);
+      if(prev){
+        row.error='Fila '+row.number+': repite contrato, concepto y tipo de la fila '+prev.number+'.';row.state='error';
+        prev.error='Fila '+prev.number+': repite contrato, concepto y tipo de la fila '+row.number+'.';prev.state='error';
+      }else{
+        contractDuplicates.set(resolvedKey,row);
+        row.state=fixedBulkExists(records,row.subject,row.draft.values)?'exists':'ready';
+      }
+    }
+    active.needsReview=false;
+    active.preview=active.bulkRows.every(row=>!row.error)&&active.bulkRows.some(row=>row.state==='ready')?{}:null;
+    renderBulk(active);
+    active.feedback.textContent=active.bulkRows.some(row=>row.error)?'Hay filas con error. Corregilas inline o en la planilla y volvé a verificar; no se puede guardar ninguna todavía.':active.preview?'Revisá todas las filas y confirmá antes de guardar. Las que ya existen no se enviarán.':'Todas las novedades ya existen en el registro consultado. No hay propuestas nuevas para guardar.';
+  }
+  async function reverifyBulkRows(active){
+    if(active?.kind!=='bulkPropose'||attempt||busy||active.completed||!allowedPrepare()||!data||!active.editableRows)return;
+    await operation(async live=>{
+      active.preview=null;active.reviewed.checked=false;active.needsReview=true;
+      const table={rows:[['Legajo','Concepto','Unidades','Importe','Fecha de alta','Vencimiento','Instrumento'],...active.editableRows.map(e=>e.cells)],lineNumbers:[0,...active.editableRows.map(e=>e.number)]};
+      const chosenMap=new Map(active.editableRows.filter(e=>e.chosenContractId).map(e=>[e.number,e.chosenContractId]));
+      await verifyBulkRowsCore(active,live,table,chosenMap);
+    });
+  }
+  async function verifyBulk(){
+    const active=editor;if(active?.kind!=='bulkPropose'||attempt||active.completed||!allowedPrepare()||!data)return;
+    await operation(async live=>{
+      active.subjectCache={byContract:new Map(),byLegajo:new Map()};
+      active.preview=null;active.reviewed.checked=false;active.needsReview=true;active.bulkRows=[];active.editableRows=null;active.filterErrors=false;active.bulkPage=1;active.previewHost.replaceChildren();
+      const inputSource=active.parsedTable||active.fields.sheet.value;
+      await verifyBulkRowsCore(active,live,inputSource,null);
+    });
+  }
+  async function prepareBulkSend(){
+    const active=editor;if(active?.kind!=='bulkPropose'||attempt||!active.preview||!active.reviewed.checked||active.needsReview||!allowedPrepare())return;
+    await operation(async live=>{
+      await loadBootstrap();if(!live()||editor!==active||!allowedPrepare())return;
+      const rows=active.bulkRows.filter(row=>row.state==='ready');
+      const uniqueSubjects=new Map();for(const row of rows)if(!uniqueSubjects.has(row.subject.contractId))uniqueSubjects.set(row.subject.contractId,row.subject);
+      const list=[...uniqueSubjects.values()];
+      const useBatch=list.length>20||list.some(s=>s.origin==='MUNICONTROL'&&list.length>10);
+      if(useBatch){
+        for(let i=0;i<list.length;i+=100){
+          if(!live())return;
+          setBulkProgress(active,i,list.length,`Confirmando identidades (${i} de ${list.length})…`);
+          const ids=list.slice(i,i+100).map(s=>s.contractId);
+          const batch=fixedEmployeesBatch(await request({resource:'employees',contracts:ids.join(',')}),ids);
+          if(!live()||editor!==active)return;
+          for(const item of batch.rows){
+            if(!item.ok||!fixedSubjectEqual(item.subject,uniqueSubjects.get(item.contractId))){
+              setBulkProgress(active,0,0,'');active.preview=null;active.needsReview=true;active.reviewed.checked=false;
+              throw Error('Cambió la identidad de un legajo. Volvé a verificar y revisar la planilla; no se envió ninguna propuesta.');
+            }
+          }
+        }
+        setBulkProgress(active,0,0,'');
+      }else{
+        for(const s of list){
+          if(!live())return;
+          const lookup=s.origin==='MUNICONTROL'?{contractId:s.contractId}:{legajo:s.legajo};
+          const fresh=fixedEmployee(await request({resource:'employee',...lookup}),s.origin==='MUNICONTROL'?{contractId:s.contractId}:s.legajo);
+          if(!live()||editor!==active)return;
+          if(!fixedSubjectEqual(fresh,s)){active.preview=null;active.needsReview=true;active.reviewed.checked=false;throw Error('Cambió la identidad de un legajo. Volvé a verificar y revisar la planilla; no se envió ninguna propuesta.');}
+        }
+      }
+      if(!live()||editor!==active)return;
+      attempt={command:'bulkPropose',principalKey:active.principalKey,items:rows.map(row=>({number:row.number,payload:structuredClone(fixedBulkPayload(row.draft,row.subject)),key:crypto.randomUUID(),saved:false,error:null}))};active.batch=attempt;
+    });
+    if(attempt?.command==='bulkPropose'&&editor===active)await sendBulkAttempt();
+  }
+  async function sendBulkAttempt(){
+    const pending=attempt,active=editor;if(pending?.command!=='bulkPropose'||active?.kind!=='bulkPropose'||!allowedPrepare())return;
+    await operation(async live=>{
+      await loadBootstrap();if(!live()||attempt!==pending||editor!==active||!allowedPrepare())return;
+      const total=pending.items.length;
+      for(let i=0;i<pending.items.length;i++){
+        const item=pending.items[i];
+        if(item.saved)continue;if(!live()||attempt!==pending||editor!==active)return;
+        setBulkProgress(active,pending.items.filter(it=>it.saved).length,total,bulkProgress(active)+' Guardando fila '+item.number+'…');
+        active.feedback.textContent=bulkProgress(active)+' Guardando la fila '+item.number+'…';item.error=null;
+        try{
+          const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':item.key},body:JSON.stringify({command:'propose',payload:item.payload})});
+          fixedReceipt(envelope,'propose',item.payload);
+          if(attempt!==pending)return;item.saved=true;
+          if(!live())return;
+          if(total<=50||i===total-1||(i+1)%25===0)renderBulk(active);
+        }catch(error){
+          item.error='Fila '+item.number+': '+errorMessage(error);
+          if(!live()||attempt!==pending)return;
+          setBulkProgress(active,0,0,'');
+          if([401,403].includes(error.status))clearConsulted();else renderBulk(active);
+          active.feedback.textContent=bulkProgress(active)+' '+item.error+' Se detuvo la carga. Reintentá las pendientes con los mismos datos; las guardadas no se repiten.';return;
+        }
+      }
+      if(live()&&attempt===pending&&editor===active){setBulkProgress(active,total,total,'');await finishBulk(active,live);}
+    });
+  }
+  async function finishBulk(active,live){
+    attempt=null;active.completed=true;active.preview=null;setBulkProgress(active,0,0,'');renderBulk(active);
+    active.feedback.textContent=bulkProgress(active)+' Quedaron pendientes de revisión independiente. No se aprobaron novedades ni se modificó GRH.';
+    active.form.querySelector('[data-fn-cancel]').textContent='Cerrar carga';
+    try{await loadList(live);}catch{if(live())active.feedback.textContent+=' No pudimos actualizar el registro. Usá Actualizar registro; no repitas la carga.';}
+  }
+  async function refreshBulk(active,live){
+    await loadList(live);if(!live()||editor!==active)return;
+    if(active.batch){
+      const byContract=new Map(),byLegajo=new Map();
+      const missingNative=[],missingGrh=[];
+      for(const row of active.bulkRows){
+        if(!row.draft||row.error)continue;
+        if(row.chosenContractId||row.subject?.origin==='MUNICONTROL'){
+          const cid=row.chosenContractId||row.subject.contractId;
+          if(!byContract.has(cid)){byContract.set(cid,null);missingNative.push(cid);}
+        }else{
+          const leg=row.draft.legajo;
+          if(!byLegajo.has(leg)){byLegajo.set(leg,null);missingGrh.push(leg);}
+        }
+      }
+      if(missingNative.length>10){
+        for(let i=0;i<missingNative.length;i+=100){
+          const chunk=missingNative.slice(i,i+100);
+          try{const b=fixedEmployeesBatch(await request({resource:'employees',contracts:chunk.join(',')}),chunk);for(const it of b.rows)if(it.ok)byContract.set(it.contractId,it.subject);}
+          catch(error){if(!live())return;if([401,403].includes(error.status))throw error;}
+        }
+      }else{
+        for(const cid of missingNative){
+          try{byContract.set(cid,fixedEmployee(await request({resource:'employee',contractId:cid}),{contractId:cid}));}
+          catch(error){if(!live())return;if([401,403].includes(error.status))throw error;}
+        }
+      }
+      for(const legajo of missingGrh){
+        try{byLegajo.set(legajo,fixedEmployee(await request({resource:'employee',legajo}),legajo));}
+        catch(error){if(!live())return;if([401,403].includes(error.status))throw error;}
+      }
+      for(const row of active.bulkRows){
+        if(!row.draft||row.error)continue;
+        const cid=row.chosenContractId||row.subject?.contractId;
+        row.subject=cid&&byContract.has(cid)?byContract.get(cid):byLegajo.get(row.draft.legajo)??null;
+      }
+      if(!live()||editor!==active)return;
+      // Recuperar la vista nunca reenvía. Continuar usa las claves y cuerpos originales.
+      renderBulk(active);active.feedback.textContent=bulkProgress(active)+(active.completed?' La carga terminó; no repitas las propuestas.':' La carga está detenida. Podés continuar con las pendientes; se conservan los mismos datos y claves.');
+      if(!active.completed&&active.batch.items.every(item=>item.saved))await finishBulk(active,live);
+    }else{active.preview=null;active.reviewed.checked=false;active.feedback.textContent='La planilla se conserva. Volvé a verificar los legajos y revisar antes de guardar.';}
+  }
+  function renderGroupCards(active,buildCard){
+    const total=active.groupRows.length,pages=Math.max(1,Math.ceil(total/GROUP_PAGE_SIZE));
+    active.groupPage=Math.min(Math.max(1,active.groupPage||1),pages);
+    const items=[];
+    if(active.groupNote)items.push(node('p',active.groupNote,'fn-note'));
+    if(pages>1){
+      const nav=node('div',undefined,'fn-bulk-summary');
+      nav.append(node('span',`Mostrando página ${active.groupPage} de ${pages} · ${total} registros en todo el conjunto`,'fn-note'));
+      const btns=node('div',undefined,'fn-actions');
+      const prev=button('Página anterior','group-prev'),next=button('Página siguiente','group-next');
+      prev.disabled=active.groupPage<=1;next.disabled=active.groupPage>=pages;
+      prev.addEventListener('click',()=>{if(active.groupPage>1){active.groupPage--;renderGroupCards(active,buildCard);}});
+      next.addEventListener('click',()=>{if(active.groupPage<pages){active.groupPage++;renderGroupCards(active,buildCard);}});
+      btns.append(prev,next);nav.append(btns);items.push(nav);
+    }
+    const start=pages>1?(active.groupPage-1)*GROUP_PAGE_SIZE:0,end=pages>1?Math.min(total,start+GROUP_PAGE_SIZE):total;
+    for(let i=start;i<end;i++)items.push(buildCard(active.groupRows[i],i));
+    active.sourceHost.replaceChildren(...items);
+  }
   async function openGroupEditor(mode='annul'){
     if(editor||attempt||busy||!groupAllowedPrepare()||!data||!groupIds.size)return;
     const original=data.rows.filter(r=>groupIds.has(r.id)),period=data.periodMonth;
@@ -218,22 +728,25 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       const fresh=fixedList(await request({resource:'list',...(period?{periodMonth:period}:{})}),period);if(!live()||!groupAllowedPrepare())return;
       if(!fixedGroupUnchanged(original,fresh)||original.length!==groupIds.size)throw Error('Cambió una novedad seleccionada. Actualizá el registro y revisá la selección; no se guardó nada.');
       const box=editorShell((mode==='correct'?'Corregir ':'Proponer anulación de ')+original.length+(original.length===1?' novedad fija':' novedades fijas')),source=node('section',undefined,'fn-group-source');source.dataset.fnGroupSource='';
-      source.append(node('p','Incluye toda la selección, también las novedades fuera de la página y de la búsqueda. Se conservan las versiones aprobadas hasta una decisión independiente. No anula liquidaciones ni revierte archivos ya entregados.','fn-note'));
-      for(const r of original){const section=node('article',undefined,'fn-card');section.dataset.fnGroupReviewedId=r.id;section.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,mode==='correct'?'set':'annul',mode==='correct'?r.approved.values:null));source.append(section);}
+      const baseNote='Incluye toda la selección, también las novedades fuera de la página y de la búsqueda. Se conservan las versiones aprobadas hasta una decisión independiente. No anula liquidaciones ni revierte archivos ya entregados.';
       const correctionFields={},correctionChoices={},patchFields=node('fieldset'),grid=node('div',undefined,'fn-grid');
       if(mode==='correct'){patchFields.append(node('legend','Campos que vas a corregir'));patchFields.append(node('p','Marcá cada campo que cambiará. Los demás conservan el valor de cada novedad. Un campo elegido y vacío retira ese dato cuando es opcional. No se calculan importes ni porcentajes.','fn-note'));
-        for(const [key,title,type,max]of [['conceptSourceId','Código del concepto','text',20],['costCenterSourceId','Centro de costo (opcional)','text',20],['quantityDecimal','Unidades declaradas (opcional)','text',20],['amountArs','Importe en pesos (opcional)','text',20],['legalInstrument','Instrumento que respalda la novedad','text',300],['validFrom','Fecha de alta','date',10],['validTo','Vencimiento (opcional)','date',10],['forced','Modo forzado','checkbox',0],['forcedReason','Fundamento forzado','text',500]]){
+        for(const [key,title,type,max]of [['conceptSourceId','Concepto','text',160],['costCenterSourceId','Centro de costo (opcional)','text',80],['quantityDecimal','Unidades declaradas (opcional)','text',20],['amountArs','Importe en pesos (opcional)','text',20],['legalInstrument','Instrumento que respalda la novedad','text',300],['validFrom','Fecha de alta','date',10],['validTo','Vencimiento (opcional)','date',10],['forced','Modo forzado','checkbox',0],['forcedReason','Fundamento forzado','text',500]]){
           const cell=node('div'),choice=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnGroupChange=key;choice.append(check,node('span','Cambiar '+title.toLowerCase()));cell.append(choice,makeField(correctionFields,key,title,type,max));correctionChoices[key]=check;grid.append(cell);
         }
+        conceptChooser(correctionFields,{fillUnits:false});costCenterChooser(correctionFields.costCenterSourceId);
         const cell=node('div'),choice=node('label',undefined,'fn-group-select'),check=node('input');check.type='checkbox';check.dataset.fnGroupChange='payrollType';choice.append(check,node('span','Cambiar tipo de liquidación'));const label=node('label','Tipo de liquidación'),type=node('select');type.dataset.fnField='payrollType';type.append(Object.assign(node('option','Elegí un tipo'),{value:''}));for(const [value,title]of Object.entries(FIXED_TYPES))type.append(Object.assign(node('option',title),{value}));label.append(type);cell.append(choice,label);correctionChoices.payrollType=check;correctionFields.payrollType=type;grid.append(cell);patchFields.append(grid);
       }
       const fields=node('fieldset'),label=node('label','Motivo del conjunto'),reason=node('textarea');reason.maxLength=500;reason.dataset.fnGroupReason='';label.append(reason);fields.append(label);
       const acknowledgement=node('label',undefined,'fn-group-select'),reviewed=node('input');reviewed.type='checkbox';reviewed.dataset.fnGroupReviewed='';acknowledgement.append(reviewed,node('span',original.length===1?'Revisé la novedad y el alcance administrativo de su anulación.':'Revisé las '+original.length+' novedades y el alcance administrativo de sus anulaciones.'));fields.append(acknowledgement);
       const send=button('Proponer '+original.length+(mode==='correct'?(original.length===1?' corrección':' correcciones'):(original.length===1?' anulación':' anulaciones')),'save',true),preview=button('Revisar todas las correcciones','group-preview',true);box.actions.prepend(send);if(mode==='correct'){box.actions.prepend(preview);box.form.append(patchFields);}box.form.append(source,fields,box.feedback,box.actions);
-      editor={...box,kind:mode==='correct'?'correctGroup':'annulGroup',correctionFields,correctionChoices,sourceHost:source,groupRows:original,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
-      const active=editor;const update=()=>{if(editor!==active||attempt||busy)return;if(mode==='correct'){active.preview=null;reviewed.checked=false;source.replaceChildren(node('p','Volvé a revisar el conjunto completo después de cambiar los campos o el motivo.','fn-note'));active.feedback.textContent='Elegí los campos y presioná Revisar todas las correcciones.';}else{try{active.preview=fixedGroupDraft(active.groupRows,reason.value);active.feedback.textContent=reviewed.checked?'Conjunto revisado. Guardar crea todas las propuestas o ninguna.':'Confirmá la revisión de todo el conjunto antes de guardar.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}}controls();};
+      editor={...box,kind:mode==='correct'?'correctGroup':'annulGroup',correctionFields,correctionChoices,sourceHost:source,groupRows:original,groupPage:1,groupNote:baseNote,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+      const active=editor;
+      const cardFor=r=>{const section=node('article',undefined,'fn-card');section.dataset.fnGroupReviewedId=r.id;section.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,mode==='correct'?'set':'annul',mode==='correct'?r.approved.values:null));return section;};
+      renderGroupCards(active,cardFor);
+      const update=()=>{if(editor!==active||attempt||busy)return;if(mode==='correct'){active.preview=null;reviewed.checked=false;source.replaceChildren(node('p','Volvé a revisar el conjunto completo después de cambiar los campos o el motivo.','fn-note'));active.feedback.textContent='Elegí los campos y presioná Revisar todas las correcciones.';}else{try{active.preview=fixedGroupChunks(active.groupRows,chunk=>fixedGroupDraft(chunk,reason.value));active.feedback.textContent=reviewed.checked?'Conjunto revisado. Guardar envía en lotes de hasta '+FIXED_GROUP_CHUNK_SIZE+'.':'Confirmá la revisión de todo el conjunto antes de guardar.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}}controls();};
       if(mode==='correct'){reviewed.closest('label').querySelector('span').textContent='Revisé todos los valores anteriores y propuestos del conjunto. Cada corrección requerirá una decisión independiente.';
-        for(const [key,check]of Object.entries(correctionChoices)){const input=correctionFields[key];input.dataset.fnGroupValue=key;check.addEventListener('change',update);input.addEventListener('input',update);}preview.addEventListener('click',()=>{if(editor!==active||busy||attempt||active.needsReview||!active.groupRows)return;try{const changes=Object.fromEntries(Object.entries(correctionChoices).filter(([,n])=>n.checked).map(([key])=>[key,correctionFields[key].type==='checkbox'?correctionFields[key].checked:correctionFields[key].value]));active.preview=fixedCorrectionGroupDraft(active.groupRows,changes,reason.value);reviewed.checked=false;source.replaceChildren(node('p',active.preview.items.length+' correcciones. Incluye toda la selección, también fuera de la búsqueda y la página.','fn-note'));active.groupRows.forEach((r,i)=>{const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,'set',active.preview.items[i].values));source.append(card);});active.feedback.textContent='Compará todos los campos y confirmá la revisión antes de proponer el conjunto.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();});}
+        for(const [key,check]of Object.entries(correctionChoices)){const input=correctionFields[key];input.dataset.fnGroupValue=key;check.addEventListener('change',update);input.addEventListener('input',update);}preview.addEventListener('click',()=>{if(editor!==active||busy||attempt||active.needsReview||!active.groupRows)return;try{const changes=Object.fromEntries(Object.entries(correctionChoices).filter(([,n])=>n.checked).map(([key])=>[key,correctionFields[key].type==='checkbox'?correctionFields[key].checked:correctionFields[key].value]));if(Object.hasOwn(changes,'conceptSourceId')){const code=fixedConceptCode(changes.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');changes.conceptSourceId=code;}if(Object.hasOwn(changes,'costCenterSourceId')){const center=costCenterCode(changes.costCenterSourceId);if(center===null)throw Error('Elegí el centro de costo de la lista o escribí su número.');changes.costCenterSourceId=center;}const chunks=fixedGroupChunks(active.groupRows,chunk=>fixedCorrectionGroupDraft(chunk,changes,reason.value));const flatItems=chunks.flatMap(c=>c.items);active.preview=chunks;active.groupPage=1;active.groupNote=flatItems.length+' correcciones'+(chunks.length>1?' ('+chunks.length+' lotes de hasta '+FIXED_GROUP_CHUNK_SIZE+')':'')+'. Incluye toda la selección, también fuera de la búsqueda y la página.';reviewed.checked=false;renderGroupCards(active,(r,i)=>{const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Revisión '+r.version,'fn-note'),comparison(r,'set',flatItems[i].values));return card;});active.feedback.textContent='Compará todos los campos y confirmá la revisión antes de proponer el conjunto.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();});}
       reason.addEventListener('input',update);reviewed.addEventListener('change',mode==='correct'?controls:update);send.addEventListener('click',prepareSend);box.feedback.textContent='Informá el motivo y revisá todo el conjunto. Todavía no se guardó ninguna propuesta.';reason.focus();
     });
   }
@@ -246,19 +759,20 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       if(!fixedGroupUnchanged(original,fresh,true)||original.length!==reviewGroupIds.size)throw Error('Cambió una propuesta seleccionada. Actualizá y revisá el conjunto; no se decidió nada.');
       const quantityLabel=original.length+(original.length===1?' propuesta':' propuestas');
       const box=editorShell((decision==='approve'?'Aprobar':'Rechazar')+' '+quantityLabel+' para control'),source=node('section',undefined,'fn-group-source');source.dataset.fnGroupSource='';
-      source.append(node('p','Incluye toda la selección, también fuera de la búsqueda y la página. Se registra una decisión por propuesta; todas se deciden juntas o ninguna. No calcula, confirma ni anula liquidaciones.','fn-note'));
-      for(const r of original){const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Propuesta por '+r.pending.proposedBy+' · '+stamp(r.pending.proposedAt),'fn-note'),reviewSource(r,decision));source.append(card);}
+      const chunkNotice=original.length>FIXED_GROUP_CHUNK_SIZE?` Se procesará en ${Math.ceil(original.length/FIXED_GROUP_CHUNK_SIZE)} lotes de hasta ${FIXED_GROUP_CHUNK_SIZE} propuestas.`:' Se registra una decisión por propuesta; todas se deciden juntas o ninguna.';
       const fields=node('fieldset'),label=node('label','Fundamento de la decisión conjunta'),reason=node('textarea');reason.maxLength=500;reason.dataset.fnGroupReason='';label.append(reason);fields.append(label);
       const acknowledgement=node('label',undefined,'fn-group-select'),reviewed=node('input');reviewed.type='checkbox';reviewed.dataset.fnGroupReviewed='';acknowledgement.append(reviewed,node('span','Revisé los diez campos, instrumentos, motivos y alcance de todas las propuestas.'));fields.append(acknowledgement);
       const send=button((decision==='approve'?'Aprobar':'Rechazar')+' '+quantityLabel+' para control','save',true);box.actions.prepend(send);box.form.append(source,fields,box.feedback,box.actions);box.form.querySelector('[data-fn-cancel]').textContent='Cancelar decisión local';
-      editor={...box,kind:'reviewGroup',decision,sourceHost:source,groupRows:original,period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
-      const active=editor,update=()=>{if(editor!==active||attempt||busy)return;try{active.preview=fixedReviewGroupDraft(active.groupRows,decision,reason.value);active.feedback.textContent=reviewed.checked?'Revisión confirmada. Se guardarán todas las decisiones o ninguna, conservando su historial.':'Confirmá la revisión completa. Cada decisión conservará su historial.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();};
+      editor={...box,kind:'reviewGroup',decision,sourceHost:source,groupRows:original,groupPage:1,groupNote:'Incluye toda la selección, también fuera de la búsqueda y la página.'+chunkNotice+' No calcula, confirma ni anula liquidaciones.',period,reviewed,reasonInput:reason,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+      const active=editor;
+      renderGroupCards(active,r=>{const card=node('article',undefined,'fn-card');card.dataset.fnGroupReviewedId=r.id;card.append(node('h4',(r.subject.employeeName||'Nombre no informado')+' · Legajo '+r.subject.legajo),node('p',fixedOriginLabel(r.subject)+' · Propuesta por '+r.pending.proposedBy+' · '+stamp(r.pending.proposedAt),'fn-note'),reviewSource(r,decision));return card;});
+      const update=()=>{if(editor!==active||attempt||busy)return;try{active.preview=fixedGroupChunks(active.groupRows,chunk=>fixedReviewGroupDraft(chunk,decision,reason.value));active.feedback.textContent=reviewed.checked?'Revisión confirmada.'+(active.preview.length>1?' Se enviarán '+active.preview.length+' lotes de hasta '+FIXED_GROUP_CHUNK_SIZE+' propuestas.':' Se guardarán todas las decisiones juntas, conservando su historial.'):'Confirmá la revisión completa. Cada decisión conservará su historial.';}catch(error){active.preview=null;active.feedback.textContent=error.message;}controls();};
       reason.addEventListener('input',()=>{reviewed.checked=false;update();});reviewed.addEventListener('change',update);send.addEventListener('click',prepareSend);box.feedback.textContent='Revisá todas las propuestas e informá el fundamento. Todavía no se guardó ninguna decisión.';reason.focus();
     });
   }
   async function prepareGroupSend(){
     const active=editor;if(!active||attempt||busy||active.needsReview||!groupAuthority(active.kind)||!active.reviewed.checked||!active.preview)return;
-    const payload=active.preview;let ready=false;
+    const chunks=active.preview;let ready=false;
     await operation(async live=>{
       await loadBootstrap();if(!live()||editor!==active||!groupAuthority(active.kind)||active.principalKey!==fixedPrincipalKey(bootstrap))return;
       const fresh=fixedList(await request({resource:'list',...(active.period?{periodMonth:active.period}:{})}),active.period);if(!live()||editor!==active||!groupAuthority(active.kind))return;
@@ -266,20 +780,25 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       ready=true;
     });
     if(!ready||!available()||editor!==active||attempt)return;
-    attempt={command:active.kind,payload:structuredClone(payload),key:crypto.randomUUID(),principalKey:active.principalKey};sendAttempt();
+    const firstKey=crypto.randomUUID();
+    attempt={command:active.kind,key:firstKey,chunks:chunks.map((p,i)=>({index:i,key:i===0?firstKey:crypto.randomUUID(),payload:structuredClone(p),saved:false,error:null})),principalKey:active.principalKey};
+    sendAttempt();
   }
   function openEditor(row=null,operationKind='set',selectedSubject=null){
     if(editor||attempt||busy||!allowedPrepare()||row&&!row.canPropose)return;
     const box=editorShell(operationKind==='annul'?'Proponer anulación':row?'Proponer corrección':'Registrar novedad fija'),fields={};
-    const identity=node('fieldset'),legend=node('legend','1 · Legajo y respaldo');identity.append(legend);const grid=node('div',undefined,'fn-grid');
-    grid.append(makeField(fields,'legajo','Legajo exacto','text',20));fields.legajo.inputMode='numeric';
-    const lookup=button('Verificar legajo GRH','lookup'),choose=button('Buscar y elegir persona','choose');grid.append(lookup,choose);identity.append(grid,node('p','Podés elegir un alta propia por su ficha. El número de legajo por sí solo consulta únicamente la fuente GRH.','fn-note'));box.form.append(identity);
+    const identity=node('fieldset'),legend=node('legend','1 · Persona');identity.append(legend);const grid=node('div',undefined,'fn-grid');
+    const lookup=button('Verificar legajo','lookup'),choose=button('Buscar persona por nombre o legajo','choose');
+    const contractPickerHost=node('div');contractPickerHost.dataset.fnContractPicker='';
+    identity.append(choose,node('p','Elegila de la lista o ingresá el legajo para buscar contrato activo propio, adoptado o de GRH.','fn-note'));
+    grid.append(makeField(fields,'legajo','O escribí el legajo exacto','text',64),lookup);fields.legajo.inputMode='text';identity.append(grid,contractPickerHost);box.form.append(identity);
     if(operationKind==='set'){
-      const fieldset=node('fieldset');fieldset.append(node('legend','2 · Valores y vigencia informados'));const inputs=node('div',undefined,'fn-grid');
-      for(const[key,label,max]of [['conceptSourceId','Código del concepto',20],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
-      for(const key of ['conceptSourceId','costCenterSourceId'])fields[key].inputMode='numeric';for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
+      const fieldset=node('fieldset');fieldset.append(node('legend','2 · Qué novedad es y desde cuándo'));const inputs=node('div',undefined,'fn-grid');
+      for(const[key,label,max]of [['conceptSourceId','Concepto',160],['costCenterSourceId','Centro de costo (opcional)',20],['quantityDecimal','Unidades (si constan)',20],['amountArs','Importe en pesos (si consta)',20],['legalInstrument','Instrumento que respalda la novedad',300]])inputs.append(makeField(fields,key,label,'text',max));
+      for(const key of ['quantityDecimal','amountArs'])fields[key].inputMode='decimal';
+      conceptChooser(fields);costCenterChooser(fields.costCenterSourceId);instrumentChooser(fields.legalInstrument);
       const type=node('label','Tipo de liquidación'),select=node('select');select.dataset.fnField='payrollType';select.append(Object.assign(node('option','Elegí un tipo'),{value:''}));
-      for(const[value,label]of Object.entries(FIXED_TYPES))select.append(Object.assign(node('option',label),{value}));fields.payrollType=select;type.append(select);inputs.append(type);
+      for(const[value,label]of Object.entries(FIXED_TYPES))select.append(Object.assign(node('option',label),{value}));if(!row)select.value='monthly';fields.payrollType=select;type.append(select);inputs.append(type);
       inputs.append(makeField(fields,'validFrom','Fecha de alta','date'),makeField(fields,'validTo','Vencimiento (si consta)','date'));
       const forced=makeField(fields,'forced','Valor forzado, con fundamento','checkbox');forced.className='fn-check';inputs.append(forced,makeField(fields,'forcedReason','Fundamento del modo forzado','text',500));
       fields.forcedReason.closest('label').hidden=true;fields.forced.addEventListener('change',()=>{fields.forcedReason.closest('label').hidden=!fields.forced.checked;});
@@ -289,12 +808,13 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     box.form.append(node('p','Copiá únicamente valores respaldados. Los campos vacíos no se convierten en cero. Las fechas no generan prorrateos, lotes ni liquidaciones automáticas.','fn-note'));
     const previewButton=button('Revisar propuesta','preview',true),saveButton=button('Guardar propuesta para revisión','save',true);saveButton.hidden=true;box.actions.prepend(previewButton,saveButton);
     box.form.append(box.previewHost,box.comparison,box.actions,box.feedback);
-    editor={...box,kind:'propose',operation:operationKind,row,detailSnapshot:row?detail:null,subject:row?.subject??selectedSubject,lookupContractId:selectedSubject?.contractId??null,expectedVersion:row?.version??0,fields,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
+    editor={...box,kind:'propose',operation:operationKind,row,detailSnapshot:row?detail:null,subject:row?.subject??selectedSubject,lookupContractId:selectedSubject?.contractId??null,expectedVersion:row?.version??0,fields,contractPickerHost,preview:null,needsReview:false,principalKey:fixedPrincipalKey(bootstrap)};
     if(selectedSubject){fields.legajo.value=selectedSubject.legajo;fields.legajo.readOnly=true;showSubject();}
     if(row){fields.legajo.value=row.subject.legajo;fields.legajo.readOnly=true;const v=row.approved?.operation==='set'?row.approved.values:row.latest.values;
-      if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=v[key]??'';}
+      if(v&&operationKind==='set')for(const[key,input]of Object.entries(fields)){if(key==='amountArs')input.value=fixedMoneyInput(v.amountCents);else if(key==='forced')input.checked=v.forced;else if(Object.hasOwn(v,key))input.value=key==='conceptSourceId'?fixedConceptOption(v[key])??v[key]:v[key]??'';}
+      fields.conceptSourceId?.dispatchEvent(new Event('fn-concept-shown'));
       if(fields.forcedReason)fields.forcedReason.closest('label').hidden=!fields.forced.checked;showSubject();}
-    fields.legajo.addEventListener('input',()=>{if(editor&&!editor.row){editor.subject=null;editor.lookupContractId=null;box.subjectHost.replaceChildren();}});
+    fields.legajo.addEventListener('input',()=>{if(editor&&!editor.row){editor.subject=null;editor.lookupContractId=null;box.subjectHost.replaceChildren();contractPickerHost.replaceChildren();}});
     lookup.addEventListener('click',lookupEmployee);
     choose.addEventListener('click',()=>{
       if(busy||attempt||!editor||editor.row||!directoryAllowed||!allowedPrepare())return;const active=editor;
@@ -310,25 +830,60 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       const s=editor.subject;
       if(editor.fields?.legajo)editor.fields.legajo.maxLength=s.origin==='MUNICONTROL'?128:20;
       editor.subjectHost.textContent=(s.employeeName||'Nombre no informado')+' · Legajo '+s.legajo+' · '+fixedOriginLabel(s)+' · '+(s.origin==='MUNICONTROL'?'Registro propio desde '+dayLabel(s.registeredAt):'Fuente al '+dayLabel(s.sourceCutoff))+'. No certifica elegibilidad salarial.';
+      if(!editor.row&&editor.fields?.legajo?.readOnly){
+        const change=button('Cambiar persona','unlock-legajo');
+        change.addEventListener('click',()=>{if(busy||attempt||!editor)return;editor.subject=null;editor.lookupContractId=null;editor.fields.legajo.readOnly=false;editor.fields.legajo.maxLength=64;editor.subjectHost.replaceChildren();editor.contractPickerHost?.replaceChildren();editor.fields.legajo.focus();controls();});
+        editor.subjectHost.append(node('span',' '),change);
+      }
     }
   }
   async function lookupContract(contractId){
     if(!editor||editor.kind!=='propose'||editor.row||attempt)return;const active=editor;active.lookupContractId=contractId;
-    await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();const next=fixedEmployee(await request({resource:'employee',contractId}),{contractId});if(!live()||editor!==active)return;
+    await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();active.contractPickerHost?.replaceChildren();const next=fixedEmployee(await request({resource:'employee',contractId}),{contractId});if(!live()||editor!==active)return;
       active.subject=next;active.fields.legajo.value=next.legajo;active.fields.legajo.readOnly=true;active.needsReview=false;showSubject();active.feedback.textContent='Persona elegida y origen verificado. Revisá los valores antes de guardar.';
       active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;});
   }
   async function lookupEmployee(){
     if(!editor||editor.kind!=='propose'||editor.row||attempt)return;const active=editor,legajo=active.fields.legajo.value.trim();
-    if(!/^(?:0|[1-9]\d{0,19})$/.test(legajo)){active.feedback.textContent='Ingresá un legajo exacto, sin separadores ni ceros iniciales.';return;}
+    if(!legajo||[...legajo].length>64||/[\x00-\x1f\x7f-\x9f]/.test(legajo)){active.feedback.textContent='Ingresá un legajo válido de hasta 64 caracteres.';return;}
     active.lookupContractId=null;
-    await operation(async live=>{active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();const next=fixedEmployee(await request({resource:'employee',legajo}),legajo);if(!live()||editor!==active)return;active.subject=next;active.fields.legajo.readOnly=false;active.needsReview=false;showSubject();active.feedback.textContent='Legajo GRH verificado. Completá los valores y revisá la propuesta.';});
+    await operation(async live=>{
+      active.subject=null;active.preview=null;active.previewHost.hidden=true;active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;active.subjectHost.replaceChildren();active.contractPickerHost?.replaceChildren();
+      if(directoryAllowed){
+        const dir=await loadNativeDirectory();if(!live()||editor!==active)return;
+        const found=findDirectoryLegajo(dir,legajo);
+        if(found.kind==='ambiguous'){
+          const lbl=node('label','Este legajo tiene más de un contrato activo: elegí el contrato');
+          const sel=node('select');sel.dataset.fnContractSelect='';
+          sel.append(Object.assign(node('option','Elegí el contrato activo…'),{value:''}));
+          for(const m of found.matches){
+            const opt=node('option',`Legajo ${m.legajo} · ${m.name||'Sin nombre'}${m.sector?' · '+m.sector:''}`);
+            opt.value=m.contractId;sel.append(opt);
+          }
+          sel.addEventListener('change',()=>{if(sel.value)lookupContract(sel.value);});
+          lbl.append(sel);active.contractPickerHost?.replaceChildren(lbl);
+          active.feedback.textContent='Legajo con más de un contrato activo: elegí el contrato.';return;
+        }
+        if(found.kind==='inactive'){active.feedback.textContent='Legajo sin contrato activo.';return;}
+        if(found.kind==='single'){
+          const cid=found.matches[0].contractId;active.lookupContractId=cid;
+          const next=fixedEmployee(await request({resource:'employee',contractId:cid}),{contractId:cid});if(!live()||editor!==active)return;
+          active.subject=next;active.fields.legajo.value=next.legajo;active.fields.legajo.readOnly=true;active.needsReview=false;showSubject();
+          active.feedback.textContent='Contrato propio/adoptado verificado. Completá los valores y revisá la propuesta.';return;
+        }
+        if(!/^(?:0|[1-9]\d{0,19})$/.test(legajo)){active.feedback.textContent='Legajo sin contrato activo.';return;}
+      }else if(!/^(?:0|[1-9]\d{0,19})$/.test(legajo)){active.feedback.textContent='Ingresá un legajo exacto, sin separadores ni ceros iniciales, o buscalo desde el padrón.';return;}
+      const next=fixedEmployee(await request({resource:'employee',legajo}),legajo);if(!live()||editor!==active)return;
+      active.subject=next;active.fields.legajo.readOnly=next.origin==='MUNICONTROL'&&next.legajo!==legajo;if(next.legajo!==legajo)active.fields.legajo.value=next.legajo;active.needsReview=false;showSubject();
+      active.feedback.textContent=(next.origin==='MUNICONTROL'?'Contrato propio/adoptado verificado.':'Legajo GRH verificado.')+' Completá los valores y revisá la propuesta.';
+    });
   }
   function previewProposal(){
     if(!editor||attempt||busy||editor.needsReview)return;const active=editor;
     try{
       if(!active.subject||(active.subject.origin==='MUNICONTROL'?active.fields.legajo.value:active.fields.legajo.value.trim())!==active.subject.legajo)throw Error('Verificá primero el legajo exacto.');
       const fields=Object.fromEntries(Object.entries(active.fields).map(([k,n])=>[k,n.type==='checkbox'?n.checked:n.value]));
+      if(active.operation!=='annul'){const code=fixedConceptCode(fields.conceptSourceId);if(code===null)throw Error('Elegí el concepto de la lista o escribí su número.');fields.conceptSourceId=code;const center=costCenterCode(fields.costCenterSourceId);if(center===null)throw Error('Elegí el centro de costo de la lista o escribí su número.');fields.costCenterSourceId=center;}
       const draft=active.operation==='annul'?{legajo:active.subject.legajo,values:null,reason:fixedText(fields.reason,'el motivo de la anulación')}:fixedForm(fields,active.subject);
       active.preview={recordId:active.row?.id??null,expectedVersion:active.expectedVersion,contractId:active.subject.contractId,legajo:active.subject.legajo,identityToken:active.subject.identityToken,operation:active.operation,values:draft.values,reason:draft.reason};
       active.previewHost.replaceChildren(node('h4','Revisá antes de guardar'),node('p','Legajo '+active.subject.legajo+' · '+(active.subject.employeeName||'Nombre no informado')+' · '+fixedOriginLabel(active.subject)),comparison(active.row,active.operation,draft.values),node('p','Motivo: '+draft.reason),node('p','Quedará pendiente de otra persona. No modifica la versión aprobada ni calcula haberes.','fn-note'));
@@ -375,24 +930,60 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
       sendAttempt();
     }catch(error){if(editor)editor.feedback.textContent=errorMessage(error);}
   }
-  function trustedFailure(error){return /^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|SESSION_BUSY|NOT_FOUND)$/.test(error.code||'');}
+  function trustedFailure(error){
+    if(/^PAYROLL_FIXED_(?:VERSION_CONFLICT|PENDING_EXISTS|OVERLAP|IDENTITY_CHANGED|MAKER_CHECKER_REQUIRED|EMPLOYMENT_REQUIRED|LEGACY_RECONCILIATION_REQUIRED|INVALID_PAYLOAD|DATES_INVALID|ROW_LIMIT|CAPACITY_LIMIT|CAPABILITY_REQUIRED|NOT_FOUND|LEGAJO_NOT_FOUND|LEGAJO_AMBIGUOUS|WITHDRAWN|JURISDICTION_REQUIRED|AUTHORITY_REQUIRED|JUNIN638_DNI_REQUIRED|JUNIN638_AMOUNT_REQUIRED)$/.test(error.code||''))return true;
+    return [400,403,404,422].includes(error.status);
+  }
   async function sendAttempt(){
+    if(attempt?.command==='bulkPropose')return sendBulkAttempt();
     if(isGroupKind(attempt?.command)&&!groupAuthority(attempt.command))return;
     if(!attempt||!editor||!(isGroupKind(attempt.command)?groupAuthority(attempt.command):attempt.command==='review'?allowedReview():allowedPrepare()))return;
     const pending=attempt,active=editor;
     await operation(async live=>{
+      const isGroup=isGroupKind(pending.command);
+      if(isGroup){
+        const chunks=pending.chunks||[];
+        const totalItems=chunks.reduce((acc,c)=>acc+c.payload.items.length,0);
+        let lastReceipt=null;
+        for(let i=0;i<chunks.length;i++){
+          const chunk=chunks[i];
+          if(chunk.saved){lastReceipt=chunk.receipt;continue;}
+          if(!live()||attempt!==pending){if(attempt===pending)pending.uncertain=true;return;}
+          const savedSoFar=chunks.filter(c=>c.saved).reduce((acc,c)=>acc+c.payload.items.length,0);
+          active.feedback.textContent=chunks.length>1?`Guardando lote ${i+1} de ${chunks.length} (${savedSoFar} de ${totalItems} ítems confirmados)…`:'Guardando el mismo intento…';
+          try{
+            const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':chunk.key},body:JSON.stringify({command:pending.command==='reviewGroup'?'review':pending.command==='correctGroup'?'correct':'annul',payload:chunk.payload})},groupEndpoint(pending.command));
+            const receipt=fixedGroupReceipt(envelope,chunk.key,chunk.payload);
+            chunk.saved=true;chunk.receipt=receipt;lastReceipt=receipt;
+          }catch(error){
+            if(!live()){if(attempt===pending)pending.uncertain=true;return;}
+            const anySaved=chunks.some(c=>c.saved);
+            if(!pending.uncertain&&!anySaved&&trustedFailure(error)){
+              attempt=null;active.preview=null;active.needsReview=true;active.reviewed.checked=false;active.groupRows=null;active.form.querySelector('[data-fn-group-source]')?.replaceChildren();
+            }else{
+              if(trustedFailure(error))chunk.error=errorMessage(error);
+              else pending.uncertain=true;
+            }
+            if([401,403].includes(error.status))clearConsulted();
+            status(errorMessage(error));
+            active.feedback.textContent=attempt?(anySaved?`Se guardaron ${chunks.filter(c=>c.saved).reduce((a,c)=>a+c.payload.items.length,0)} ítems y se detuvo el lote ${i+1}: ${errorMessage(error)} Reintentá los lotes pendientes.`:'No se pudo confirmar el guardado. Conservamos exactamente los datos y la clave; reintentá el mismo envío.'):errorMessage(error)+' Usá Actualizar registro para revisar permisos y versión; el formulario se conserva.';
+            return;
+          }
+        }
+        if(!live()||attempt!==pending){if(attempt===pending)pending.uncertain=true;return;}
+        await finish({...lastReceipt,total:totalItems},live);
+        return;
+      }
       active.feedback.textContent='Guardando el mismo intento…';
       try{
-        const isGroup=isGroupKind(pending.command);
-        const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:isGroup?(pending.command==='reviewGroup'?'review':pending.command==='correctGroup'?'correct':'annul'):pending.command,payload:pending.payload})},isGroup?groupEndpoint(pending.command):ENDPOINT);
-        const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);
+        const envelope=await request(null,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':pending.key},body:JSON.stringify({command:pending.command,payload:pending.payload})},ENDPOINT);
+        const receipt=fixedReceipt(envelope,pending.command,pending.payload);
         if(!live()||attempt!==pending){if(attempt===pending)pending.uncertain=true;return;}await finish(receipt,live);
       }catch(error){if(!live()){if(attempt===pending)pending.uncertain=true;return;}
         // A controlled first refusal confirms no mutation. An uncertain replay
         // stays locked until its receipt is recovered; a 404 is not an outcome.
         if(!pending.uncertain&&trustedFailure(error)){attempt=null;active.preview=null;if(active.kind==='review'){active.preview={};active.reviewed.checked=false;}
           active.needsReview=['PAYROLL_FIXED_VERSION_CONFLICT','PAYROLL_FIXED_PENDING_EXISTS','PAYROLL_FIXED_IDENTITY_CHANGED','PAYROLL_FIXED_OVERLAP'].includes(error.code);
-          if(isGroupKind(active.kind)){active.needsReview=true;active.reviewed.checked=false;active.groupRows=null;active.form.querySelector('[data-fn-group-source]')?.replaceChildren();}
           if(active.kind==='propose'){active.form.querySelector('[data-fn-save]').hidden=true;active.form.querySelector('[data-fn-preview]').hidden=false;}}
         else {pending.uncertain=true;active.feedback.textContent='No se pudo confirmar el guardado. Conservamos exactamente los datos y la clave; reintentá el mismo envío o verificá su estado. No inicies otra propuesta.';}
         if([401,403].includes(error.status))clearConsulted();
@@ -407,12 +998,30 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     catch(error){if([401,403].includes(error.status))clearConsulted();status('Operación confirmada, pero no pudimos actualizar la vista. Actualizá el registro; no repitas el alta.');}
   }
   async function refresh(){await operation(async live=>{
-    status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
+    restoreOnAccess=false;status('Verificando permisos y registros…');await loadBootstrap();if(!live())return;
+    if(editor?.kind==='bulkPropose'){await refreshBulk(editor,live);return;}
     if(attempt){
       const pending=attempt;
       if(pending.command==='reviewGroup'&&!groupAllowedReview()){status('Falta permiso vigente de aprobación. Se conserva el intento original; no se consultó ni reenvió.');return;}
-      try{const isGroup=isGroupKind(pending.command),envelope=await request({resource:'attempt',...(!isGroup?{command:pending.command}:{}),key:pending.key},{},isGroup?groupEndpoint(pending.command):ENDPOINT);
-        const receipt=isGroup?fixedGroupReceipt(envelope,pending.key,pending.payload):fixedReceipt(envelope,pending.command,pending.payload);if(live()&&attempt===pending)await finish(receipt,live);return;}
+      if(isGroupKind(pending.command)){
+        const chunks=pending.chunks||[];
+        const totalItems=chunks.reduce((acc,c)=>acc+c.payload.items.length,0);
+        let recovered=null;
+        for(const chunk of chunks){
+          if(chunk.saved){recovered=chunk.receipt;continue;}
+          try{const envelope=await request({resource:'attempt',key:chunk.key},{},groupEndpoint(pending.command));
+            recovered=fixedGroupReceipt(envelope,chunk.key,chunk.payload);chunk.saved=true;chunk.receipt=recovered;
+          }catch(error){if(error.status!==404)throw error;break;}
+        }
+        if(live()&&attempt===pending){
+          if(chunks.every(c=>c.saved)){await finish({...recovered,total:totalItems},live);return;}
+          if(editor)editor.feedback.textContent='Hay lotes pendientes sin confirmación. Conservamos los mismos datos y claves para continuar; no se habilitan cambios.';
+          status('El intento en lotes sigue pendiente. Podés continuar exactamente los lotes restantes.');return;
+        }
+        return;
+      }
+      try{const envelope=await request({resource:'attempt',command:pending.command,key:pending.key},{},ENDPOINT);
+        const receipt=fixedReceipt(envelope,pending.command,pending.payload);if(live()&&attempt===pending)await finish(receipt,live);return;}
       catch(error){if(error.status!==404)throw error;}
       if(editor)editor.feedback.textContent='El intento todavía no tiene confirmación. Puede seguir procesándose. Conservamos los mismos datos y clave para reintentar; no se habilitan cambios.';
       status('El intento sigue sin confirmación. Podés reintentar exactamente el mismo envío.');return;
@@ -435,7 +1044,7 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     }else if(requestedContract&&allowedPrepare()){
       const contractId=requestedContract;requestedContract=null;const chosen=fixedEmployee(await request({resource:'employee',contractId}),{contractId});
       if(live()){busy=false;openEditor(null,'set',chosen);busy=true;status('Alta seleccionada por su ficha. Revisá el origen y prepará la propuesta; todavía no se guardó ninguna novedad.');}
-    }else status(bootstrap.principal.employmentLinked?'Registro consultado. Las propuestas pendientes y las versiones aprobadas se muestran por separado.':'Consulta disponible. Falta verificar el vínculo laboral del operador para proponer o revisar.');
+    }else status(fixedActorReady(bootstrap)?'Registro consultado. Las propuestas pendientes y las versiones aprobadas se muestran por separado.':'Consulta disponible. Falta acreditar la identidad del operador para proponer o revisar.');
   });}
   async function exportFile(format){
     if(editor||!data?.periodMonth||!can('payroll.novelty.export'))return;const original=data,view=selected();
@@ -464,13 +1073,13 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   }
   function mount(){
     if(mounted)return;mounted=true;
-    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Elegí un período para exportar. CSV y Excel incluyen las versiones aprobadas vigentes del filtro completo. El TXT 638 incluye todas las novedades 638 aprobadas vigentes del período; no aplica la búsqueda ni el filtro de pantalla.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638 aria-describedby="fixedTxt638Availability">Descargar TXT 638 · AMARU</button></div><p id="fixedTxt638Availability" class="fn-note fn-txt638-availability" role="status" data-fn-txt638-availability></p><section class="fn-txt638-review" data-fn-txt638-review hidden></section><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
+    host.innerHTML=`<div class="fn-toolbar"><p class="fn-note">Registro administrativo. Aprobar habilita sólo una exportación de control.</p><div class="fn-actions"><button type="button" class="button" data-fn-refresh>Actualizar registro</button><button type="button" class="button primary" data-fn-new hidden>Registrar novedad fija</button><button type="button" class="button" data-fn-bulk-new hidden>Cargar varias desde una planilla</button></div></div><p class="fn-status" role="status" aria-live="polite" data-fn-status>Consultá el registro para continuar.</p><div data-fn-editor></div><form class="fn-filters" data-fn-query><label>Período de consulta (opcional)<input type="month" min="1900-01" max="2100-12" data-fn-period></label><label>Buscar legajo, nombre o concepto<input type="search" maxlength="100" autocomplete="off" data-fn-search></label><label>Mostrar<select data-fn-filter><option value="all">Todos</option><option value="approved">Con versión aprobada</option><option value="pending">Con propuesta pendiente</option><option value="rejected">Última propuesta rechazada</option><option value="annulled">Anuladas</option><option value="partial">Vigencia parcial en el período</option></select></label><button type="submit" class="button" data-fn-consult>Consultar</button></form><p class="fn-note">El período incluye vigencias que coinciden total o parcialmente. No prorratea. Los códigos informados no certifican elegibilidad salarial. Elegí un período para exportar. CSV y Excel incluyen las versiones aprobadas vigentes del filtro completo. El TXT 638 incluye todas las novedades 638 aprobadas vigentes del período; no aplica la búsqueda ni el filtro de pantalla.</p><div class="fn-actions"><button type="button" class="button" data-fn-csv>Descargar CSV de control</button><button type="button" class="button" data-fn-xlsx>Descargar Excel de control</button><button type="button" class="button primary" data-fn-junin638 aria-describedby="fixedTxt638Availability">Descargar TXT 638 · AMARU</button></div><p id="fixedTxt638Availability" class="fn-note fn-txt638-availability" role="status" data-fn-txt638-availability></p><section class="fn-txt638-review" data-fn-txt638-review hidden></section><p class="fn-note" data-fn-count></p><div class="fn-cards" data-fn-list></div><nav class="fn-pagination" data-fn-pagination aria-label="Páginas de novedades fijas" hidden><button type="button" class="button" data-fn-previous>Anterior</button><span data-fn-page></span><button type="button" class="button" data-fn-next>Siguiente</button></nav><section class="fn-detail" data-fn-detail hidden></section>`;
     const groupToolbar=node('section',undefined,'fn-group-toolbar');groupToolbar.setAttribute('aria-label','Corrección y anulación conjunta de novedades fijas');const groupActions=node('div',undefined,'fn-actions');
     const chooseGroup=button('Seleccionar disponibles del filtro','group-select'),clearGroup=button('Retirar selección','group-clear'),openGroup=button('Revisar selección para anular','group-open');
     const correctGroup=button('Corregir selección','group-correct');groupActions.append(chooseGroup,clearGroup,correctGroup,openGroup);correctGroup.addEventListener('click',()=>openGroupEditor('correct'));const groupCount=node('p','','fn-note');groupCount.dataset.fnGroupCount='';groupCount.setAttribute('role','status');groupToolbar.append(groupActions,groupCount);$('[data-fn-list]').before(groupToolbar);
     chooseGroup.addEventListener('click',()=>{if(editor||busy||attempt||!groupAllowedPrepare()||!data)return;for(const r of selected().rows.filter(fixedGroupEligible))groupIds.add(r.id);renderList();});
     clearGroup.addEventListener('click',()=>{if(editor||busy||attempt)return;groupIds.clear();reviewGroupIds.clear();renderList();});openGroup.addEventListener('click',()=>openGroupEditor('annul'));
-    $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
+    $('[data-fn-refresh]').addEventListener('click',refresh);$('[data-fn-new]').addEventListener('click',()=>openEditor());$('[data-fn-bulk-new]').addEventListener('click',openBulkEditor);$('[data-fn-query]').addEventListener('submit',e=>{e.preventDefault();if(!editor)refresh();});
     const reviewToolbar=node('section');reviewToolbar.dataset.fnReviewGroupToolbar='';reviewToolbar.append(node('h3','Revisión independiente del conjunto'),node('p','Elegí propuestas de otra persona para aprobar o rechazar todas juntas. No decide liquidaciones.','fn-note'));
     const reviewActions=node('div',undefined,'fn-actions');for(const [key,title]of [['select','Seleccionar pendientes del filtro'],['clear','Retirar selección de revisión'],['approve','Revisar para aprobar'],['reject','Revisar para rechazar']]){const b=button(title,'review-group-'+key);reviewActions.append(b);b.addEventListener('click',()=>{if(editor||attempt||busy||!groupAllowedReview()||!data)return;if(key==='select'){for(const r of selected().rows.filter(fixedReviewGroupEligible))reviewGroupIds.add(r.id);renderList();}else if(key==='clear'){reviewGroupIds.clear();renderList();}else openReviewGroup(key);});}const reviewCount=node('p','','fn-note');reviewCount.dataset.fnReviewGroupCount='';reviewToolbar.append(reviewActions,reviewCount);$('[data-fn-list]').before(reviewToolbar);
     for(const key of ['search','filter'])$('[data-fn-'+key+']').addEventListener('input',()=>{if(data&&!busy&&!editor){page=1;renderList();}});
@@ -478,8 +1087,11 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
     $('[data-fn-previous]').addEventListener('click',()=>{page--;renderList();});$('[data-fn-next]').addEventListener('click',()=>{page++;renderList();});
     for(const format of ['csv','xlsx'])$('[data-fn-'+format+']').addEventListener('click',()=>exportFile(format));$('[data-fn-junin638]').addEventListener('click',exportJunin638);controls();
   }
-  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!data&&!editor&&!busy&&hasRead(access))refresh();}else if(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
-  const groupVisibility=()=>{if(document.hidden&&(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)))deny();};
+  // Opened before the access is known (the tab or a #fixedNovelties link can open it first): nothing may be read yet;
+  // setAccess consults when the permission arrives, so the section never stays open and empty.
+  let openedWithoutAccess=false;
+  shell.addEventListener('toggle',()=>{if(shell.open){mount();if(!hasRead(access))openedWithoutAccess=true;else if(!data&&!editor&&!busy)refresh();else if(editor?.kind==='bulkPropose'&&!busy)refresh();}else if(editor?.kind==='bulkPropose'){deny();}else if(groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)){deny();}else if(busy&&!attempt){seq++;controller?.abort();busy=false;controls();}});
+  const groupVisibility=()=>{if(!document.hidden&&editor?.kind==='bulkPropose'){restoreAfterAccess();return;}if(document.hidden&&(editor?.kind==='bulkPropose'||groupIds.size||reviewGroupIds.size||isGroupKind(editor?.kind)||isGroupKind(attempt?.command)))deny();};
   document.addEventListener('visibilitychange',groupVisibility);
   function acceptDirectoryGate(detail){const current=new Set(detail?.tenantCapabilities||[]);directoryAllowed=current.has('workforce.employee.read');if(!directoryAllowed)picker?.close();groupGateAllowed=current.has('payroll.fixed.prepare');reviewGroupGateAllowed=current.has('payroll.fixed.approve');
     const lostEditor=isGroupKind(editor?.kind)&&!(editor.kind==='reviewGroup'?reviewGroupGateAllowed:groupGateAllowed),lostAttempt=isGroupKind(attempt?.command)&&!(attempt.command==='reviewGroup'?reviewGroupGateAllowed:groupGateAllowed);
@@ -492,9 +1104,16 @@ export function mountFixedNovelties(shell,onLock=()=>{}){
   const warnPending=event=>{if(attempt){event.preventDefault();event.returnValue='';}};
   window.addEventListener('beforeunload',warnPending);
   window.addEventListener('pagehide',()=>{stopped=true;clearAll();document.removeEventListener('visibilitychange',groupVisibility);document.removeEventListener('municontrol:capabilities-ready',capabilityChange);window.removeEventListener('beforeunload',warnPending);});
-  return {setExternalBusy(value){externalBusy=Boolean(value);controls();},deny,setAccess({capabilities,principalKey}){
+  // Volvió el acceso después de haber retirado lo consultado: se recupera el registro (y se revisa el borrador o el
+  // envío pendiente, como hace «Actualizar registro»). Si la pantalla todavía está ocupada, se hace apenas se libera.
+  function restoreAfterAccess(){if(restoreOnAccess&&mounted&&shell.open&&!data&&!busy&&!externalBusy&&hasRead(access)&&available())refresh();}
+  return {setExternalBusy(value){externalBusy=Boolean(value);controls();restoreAfterAccess();},deny,setAccess({capabilities,principalKey}){
     if(outerKey&&principalKey!==outerKey){if(attempt)deny();else clearAll();}outerKey=principalKey;access=new Set(capabilities);
     if(!hasRead(access)){deny();shell.hidden=!editor;return;}shell.hidden=false;if(mounted)controls();
     if(requestedContract&&!shell.open)shell.open=true;
+    // Already opened before this module listened (a #fixedNovelties link, or its tab: the toggle event is gone), or opened
+    // before the access was known (the toggle could not read): mount if needed and consult now.
+    else if(shell.open&&(!mounted||openedWithoutAccess)){openedWithoutAccess=false;mount();if(!data&&!editor&&!busy)refresh();}
+    else restoreAfterAccess();
   }};
 }

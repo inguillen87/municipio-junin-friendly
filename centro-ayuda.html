@@ -47,7 +47,7 @@
     button, a { -webkit-tap-highlight-color: transparent; }
     a { color: inherit; }
     [hidden] { display: none !important; }
-    :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    :focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
 
     .visually-hidden {
       position: absolute !important;
@@ -257,7 +257,7 @@
     .progress-card { padding: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--green); border-radius: var(--radius); }
     .progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
     .progress-head strong { color: var(--navy); }
-    .progress-head span { color: var(--green); font-size: 12px; font-weight: 850; }
+    .progress-head span { color: var(--green); font-size: 12px; font-weight: 850; font-variant-numeric: tabular-nums; }
     .progress-track { height: 8px; margin: 11px 0 8px; overflow: hidden; background: #e0e6e3; border-radius: 2px; }
     .progress-track span { display: block; width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
     .progress-card p { margin: 0; color: var(--muted); font-size: 11px; }
@@ -377,7 +377,7 @@
     .glossary-card { padding: 14px; }
     .glossary-card dt { color: var(--navy); font-weight: 850; }
     .glossary-card dd { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .no-results { padding: 34px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); text-align: center; }
+    .no-results { padding: 34px 20px; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); text-align: center; }
     .no-results strong { display: block; margin-bottom: 4px; color: var(--navy); }
 
     .error-card { width: min(560px, calc(100% - 40px)); margin: 80px auto; padding: 24px; background: var(--surface); border: 1px solid #dfbbb6; border-left: 4px solid var(--red); box-shadow: var(--shadow); }
@@ -412,6 +412,8 @@
       .section-head p { margin-top: 4px; text-align: left; }
       .assistant-panel { grid-template-columns: 1fr; }
       .assistant-panel .button { width: 100%; }
+      .progress-actions { flex-wrap: wrap; }
+      .progress-actions .button { flex: 1 1 140px; }
       .check-row { grid-template-columns: auto minmax(0, 1fr); }
       .check-row > .button { grid-column: 2; justify-self: start; }
     }
@@ -430,6 +432,9 @@
   </style>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
+  <script src="assets/role-label.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
@@ -532,6 +537,7 @@
           <p class="search-status" id="searchStatus" role="status" aria-live="polite">Todos los contenidos están visibles.</p>
         </section>
 
+        <div data-mc-tabs='[{"id":"empezar","label":"Para empezar","hint":"Recorridos y primeros pasos","sel":"#rutas,#primeros-pasos"},{"id":"secciones","label":"Qué hace cada sección","hint":"Un resumen por módulo","sel":"#modulos"},{"id":"tareas","label":"Cómo hago…","hint":"Tareas frecuentes, paso a paso","sel":"#tareas,.assistant-panel"},{"id":"glosario","label":"Glosario","hint":"Palabras que usa el sistema","sel":"#glosario"}]' data-mc-tabs-key="mc.ayuda.tab" data-mc-tabs-label="Secciones del Centro de ayuda" data-mc-tabs-all-when="#helpSearch"></div>
         <section class="section" id="rutas" aria-labelledby="routesTitle">
           <header class="section-head"><h2 id="routesTitle">Rutas de aprendizaje</h2><p>Son orientaciones de uso, no roles de seguridad ni definiciones de la estructura municipal.</p></header>
           <div class="route-grid" id="routeList">
@@ -815,7 +821,7 @@
           if (payload.authenticated === false || !payload.user) return redirectToLogin();
           var name = payload.user.name || payload.user.email || 'Usuario interno';
           storageKey = STORAGE_PREFIX + scopeToken(payload.user.email || payload.user.name);
-          byId('userLabel').textContent = name + (payload.user.role ? ' · ' + payload.user.role : '');
+          byId('userLabel').textContent = name + (payload.user.role ? ' · ' + (window.MuniControlRoleLabel || function (value) { return value; })(payload.user.role) : '');
           restoreProgress();
           byId('authGate').hidden = true;
           byId('app').hidden = false;

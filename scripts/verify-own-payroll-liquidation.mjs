@@ -29,6 +29,19 @@ try{
  let detail=await liq(reviewer,'detail',{id:c.id});check(detail.employees.every(e=>e.allowedCommands.join('|')==='confirm'),'independent reviewer can confirm all calculated own employees');
  const command=(d,command,selection={kind:'all',values:[]})=>({runId:d.id,resultSha256:d.capture.saved.resultSha256,scopeVersion:d.scopeVersion,stateVersion:d.stateVersion,command,selection,reason:'Decisión exclusivamente sintética QA',reviewConfirmed:true});
  const makerDetail=await liq(maker,'detail',{id:c.id});check(makerDetail.employees.every(e=>e.allowedCommands.join('|')==='cancel'),'maker cannot confirm or annul own calculation');
+ // 265: la lectura liviana devuelve exactamente lo del detalle, sin el resultado técnico, para quien calculó y para quien revisa.
+ {
+  const m265=fs.readFileSync(path.join(root,'scripts/migrations/265-own-liquidation-states.sql'),'utf8').replaceAll('\r\n','\n').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replaceAll('public.',qa.schema+'.');
+  const file265=prefix+'-265.sql';fs.writeFileSync(file265,'BEGIN;\n'+m265+'\nCOMMIT;\n');
+  const installed265=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M265 estados livianos de corrida: 1 funciones/.test(installed265.stdout+installed265.stderr),'265 installs the light run states read');
+  await assert.rejects(execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000}),/M265_ALREADY_INSTALLED/);checks++;
+  const m266=fs.readFileSync(path.join(root,'scripts/migrations/266-own-liquidation-states-no-lock.sql'),'utf8').replaceAll('\r\n','\n').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replaceAll('public.',qa.schema+'.');
+  const file266=prefix+'-266.sql';fs.writeFileSync(file266,'BEGIN;\n'+m266+'\nCOMMIT;\n');
+  const installed266=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file266],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M266 estados sin candado: 1 funciones/.test(installed266.stdout+installed266.stderr),'266 removes the run lock from the light read');
+  const plain=v=>JSON.stringify(Object.fromEntries(Object.entries(v).filter(([k])=>!['version','capture'].includes(k)).sort()));
+  for(const [actor,full] of [[reviewer,detail],[maker,makerDetail]]){const light=await liq(actor,'states',{id:c.id});check(light.version==='own-liquidation-states.v1'&&!('capture' in light)&&plain(light)===plain(full),'the light read equals the detail without the technical result');}
+  await assert.rejects(liq(identity(qa.actors.checker,[]),'states',{id:c.id}),()=>true);checks++;
+ }
  const firstId=detail.employees[0].contractId,key=randomUUID(),firstBody=command(detail,'confirm',{kind:'contracts',values:[firstId]});
  const samePerson=identity(qa.actors.samePerson,OWN_LIQ_REVIEW),aliasDetail=await liq(samePerson,'detail',{id:c.id});check(aliasDetail.employees.every(e=>e.allowedCommands.length===0),'another membership/email of the maker person cannot self-confirm');await assert.rejects(liq(samePerson,'command',{key:randomUUID(),body:command(aliasDetail,'confirm')}),e=>e.code==='OWN_LIQ_DECISION_INVALID');checks++;
  for(const actor of [qa.actors.unlinked,qa.actors.outsider]){await assert.rejects(liq(identity(actor,OWN_LIQ_REVIEW),'detail',{id:c.id}),e=>[403,404].includes(e.status));checks++;}
@@ -61,6 +74,26 @@ try{
  await assert.rejects(liq(reviewer,'command',{key:randomUUID(),body:command(d3fresh,'annul')}),e=>e.code==='OWN_LIQ_FORBIDDEN');checks++;
  await db.run('DELETE FROM capabilities WHERE membership_id='+q(qa.ids.checker)+"::uuid AND capability_key='payroll.calculation.nominal.read'");
  await assert.rejects(liq(reviewer,'detail',{id:c3.id}),e=>e.status===403);checks++;await assert.rejects(liq(reviewer,'attempt',{key}),e=>e.status===403);checks++;
+ // Operadora única (258 + 263): con autorización vigente, quien calculó también confirma y anula; sin ella, no.
+ {
+  const relocate=text=>text.replaceAll('\r\n','\n').replace(" ELSE RAISE EXCEPTION 'M263_CLOSE_FUNCTION_MISSING';END IF;",' END IF;').replace('(jsonb,own_payroll_run_capture)','(jsonb,'+qa.schema+'.own_payroll_run_capture)').replaceAll('public.',qa.schema+'.').replaceAll("nspname='public'","nspname="+q(qa.schema)).replaceAll("SET search_path TO 'pg_catalog','public','pg_temp'",`SET search_path TO 'pg_catalog',${q(qa.schema)},'public','pg_temp'`);
+  const base=fs.readFileSync(path.join(root,'scripts/migrations/258-own-single-operator.sql'),'utf8'),from=base.indexOf('CREATE TABLE public.own_single_operator_authorization('),end='REVOKE ALL ON FUNCTION public.own_single_operator_v1(jsonb,uuid) FROM PUBLIC;',to=base.indexOf(end);assert.ok(from>0&&to>from);
+  const file=prefix+'-single-operator.sql';fs.writeFileSync(file,'BEGIN;\n'+relocate(base.slice(from,to+end.length))+'\n'+relocate(fs.readFileSync(path.join(root,'scripts/migrations/263-own-single-operator-decisions.sql'),'utf8'))+'\nCOMMIT;\n');
+  const installed263=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M263 decisiones con operación propia: 1 funciones/.test(installed263.stdout+installed263.stderr),'263 installs over the real decision functions');
+  await assert.rejects(execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000}),/already exists|M263_ALREADY_INSTALLED/);checks++;
+  await db.run('INSERT INTO capabilities SELECT '+q(qa.ids.maker)+"::uuid,c FROM unnest(ARRAY['payroll.calculation.approve']) c WHERE NOT EXISTS(SELECT 1 FROM capabilities o WHERE o.membership_id="+q(qa.ids.maker)+"::uuid AND o.capability_key=c)");
+  const sole=identity(qa.actors.maker,[...new Set([...RUN_CALCULATE,...OWN_LIQ_REVIEW])]);
+  let own=await liq(sole,'detail',{id:c3.id});check(own.employees.every(e=>e.state==='confirmed'&&e.allowedCommands.length===0),'without an authorization the maker still cannot annul the own calculation');
+  await db.run('INSERT INTO own_single_operator_authorization(tenant_id,membership_id,operator_label,authorized_by,reviewer,authorization_reference,document_sha256,valid_from,valid_until) VALUES('+q(qa.actors.maker.tenantId)+'::uuid,'+q(qa.ids.maker)+"::uuid,'Operadora sintética QA','Responsable sintético QA','Responsable sintético QA','Nota exclusivamente sintética de QA','"+'a'.repeat(64)+"',current_date-1,current_date+1)");
+  own=await liq(sole,'detail',{id:c3.id});check(own.employees.every(e=>e.allowedCommands.join('|')==='annul'),'with a current authorization the maker annuls the own calculation');
+  const ownAnnul=await liq(sole,'command',{key:randomUUID(),body:command(own,'annul')});check(ownAnnul.affected.length===2,'single operator annuls the whole own run');
+  const c4=await ownRunOperation(db,sole.principal,sole.session,'calculate',{body:{...body,scopeVersion:(await ownRunOperation(db,sole.principal,sole.session,'bootstrap')).scopeVersion,programVersion:(await ownRunOperation(db,sole.principal,sole.session,'bootstrap')).programVersion},key:randomUUID()});
+  let d4=await liq(sole,'detail',{id:c4.id});check(d4.employees.every(e=>e.allowedCommands.join('|')==='confirm|cancel'),'single operator may confirm or cancel what she calculated');
+  const ownConfirm=await liq(sole,'command',{key:randomUUID(),body:command(d4,'confirm')});check(ownConfirm.affected.length===2&&ownConfirm.affected.every(e=>e.state==='confirmed'),'single operator confirms the own calculation and the decision is recorded');
+  await db.run("UPDATE own_single_operator_authorization SET revoked_at=clock_timestamp(),revoked_reason='Revocación exclusivamente sintética QA' WHERE membership_id="+q(qa.ids.maker)+'::uuid');
+  d4=await liq(sole,'detail',{id:c4.id});check(d4.employees.every(e=>e.state==='confirmed'&&e.allowedCommands.length===0),'revoking the authorization restores the second-person rule at once');
+  await assert.rejects(liq(sole,'command',{key:randomUUID(),body:command(d4,'annul')}),e=>e.code==='OWN_LIQ_DECISION_INVALID');checks++;
+ }
  check(new Set(db.connections).size===db.connections.length,'every write/read/replay uses an independent committed PostgreSQL connection');
  report={passed:true,checks,serverMajor:major,synthetic:true,committed:true,ownEmployeesWithoutGrh:2,selectionKindsVerified:['contracts','departments','agreements','all'],immutableOriginalResult:true,actualSqlRevocation:true,authenticationPrincipalFixture:true,productUiVerified:false,productiveBusinessOperations:0,connections:db.connections.length};
 }catch(e){report={passed:false,checks,message:e.message,sqlDiagnostics,synthetic:true};process.exitCode=1;}

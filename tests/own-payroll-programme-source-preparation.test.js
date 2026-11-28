@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareOwnPayrollProgrammeSource,OWN_PROGRAMME_SOURCE_VERSION} from '../lib/own-payroll-programme-source-preparation.js';
+import {prepareOwnPayrollProgrammeSource,OWN_PROGRAMME_SOURCE_VERSION,OWN_PROGRAMME_SOURCE_ROLES_VERSION} from '../lib/own-payroll-programme-source-preparation.js';
 import {salaryItems,SALARY_VERSION} from '../assets/native-salary-catalog-model.js';
 import {ownProgramDefinition,OWN_PROGRAM_VERSION,OWN_PROGRAM_WORKING_TIME_VERSION,OWN_AGREEMENT_WORKING_TIME_VERSION,OWN_PAYROLL_CONDITIONS_VERSION} from '../assets/own-payroll-program-model.js';
 import {OWN_PAYROLL_NAMESPACE_VERSION} from '../assets/own-payroll-engine.js';
@@ -248,4 +248,174 @@ test('two rules reuse one custom supplied L101 source without generating a dupli
  const expression={op:'choose',condition:{op:'compare',operator:'eq',left:{op:'period_month'},right:literal('units','9')},then:literal('money','1'),else:literal('money','0')},input=fixture([definition('301',{expression}),definition('302',{expression})]);input.programmeOptions.periodContextVersion=OWN_PAYROLL_PERIOD_CONTEXT_VERSION;
  input.bindings=[{agreementCode:'71',reference:'L[101]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'customMonth',unit:'units',sourceKind:'period_context_fact',sourceField:'monthNumber',combine:'single',onMissing:'error',ruleReference:'Origen de período exclusivamente ficticio QA'}}];
  const r=prepareOwnPayrollProgrammeSource(input);assert.deepEqual(r.incidents,[]);assert.equal(r.draft.programme.bindings.length,1);assert.ok(r.draft.programme.rules.every(rule=>rule.expression.condition.left.key==='customMonth'));assert.equal(r.approved,false);assert.equal(r.executable,false);
+});
+
+// Opt-in role evidence below remains fictional and does not approve a municipal programme.
+const inputDefinition=(code='401',overrides={})=>definition(code,{expression:null,rounding:null,liquidationTypes:[],value:'2.00',...overrides});
+function roleFixture(definitions,roles,options){
+ const input=fixture(definitions,options);input.version=OWN_PROGRAMME_SOURCE_ROLES_VERSION;
+ input.definitions.forEach((d,i)=>{d.role=roles[i];});return input;
+}
+const roleParameter=(sourceCode='401',sourceKind='parameter')=>({agreementCode:'71',reference:'L[401]',sourceSha256:h('2'),binding:{agreementCode:'71',key:'DeclaredInput',unit:'days',sourceKind,sourceCode,combine:'single',onMissing:'error',ruleReference:'Entrada ficticia expresamente revisada'}});
+const roleAmount=()=>({op:'multiply',left:{op:'multiply',left:literal('money','10'),right:{op:'auxiliary',code:'501',stage:'exact'}},right:{op:'divide',left:{op:'source',reference:'L[401]',unit:'days'},right:literal('days','1')}});
+const roleAuxiliary=()=>definition('501',{kind:'auxiliary',nature:'auxiliary',quantityUnit:null,outputUnit:'coefficient',expression:literal('coefficient','0.1')});
+
+test('role v2 is opt-in, exact per definition and leaves the legacy proposal contract unchanged',()=>{
+ const legacy=fixture(),before=structuredClone(legacy),a=prepareOwnPayrollProgrammeSource(legacy);
+ const explicit=roleFixture([definition()],['payable']),b=prepareOwnPayrollProgrammeSource(explicit);
+ assert.deepEqual(legacy,before);assert.equal(a.version,OWN_PROGRAMME_SOURCE_VERSION);assert.equal(b.version,OWN_PROGRAMME_SOURCE_ROLES_VERSION);
+ assert.deepEqual(a.draft.programme,b.draft.programme);assert.equal(Object.hasOwn(a.draft.definitions[0],'role'),false);assert.equal(b.draft.definitions[0].role,'payable');
+ assert.equal(b.completeness.expectedTypedRules,1);assert.equal(b.completeness.inputDefinitions,0);
+ const missing=structuredClone(explicit);delete missing.definitions[0].role;assert.throws(()=>prepareOwnPayrollProgrammeSource(missing));
+ const unknown=structuredClone(explicit);unknown.definitions[0].role='hidden';assert.throws(()=>prepareOwnPayrollProgrammeSource(unknown),e=>e.code==='PREPARATION_ROLE_INVALID');
+ const extra=structuredClone(legacy);extra.definitions[0].role='payable';assert.throws(()=>prepareOwnPayrollProgrammeSource(extra));
+ let invoked=0;const getter=structuredClone(explicit);Object.defineProperty(getter.definitions[0],'role',{enumerable:true,get(){invoked++;return 'payable';}});assert.throws(()=>prepareOwnPayrollProgrammeSource(getter));assert.equal(invoked,0);
+});
+
+test('role v2 uses an approved input without emitting another paid concept and retains real auxiliary output',()=>{
+ const raw=roleFixture([definition('301',{expression:roleAmount()}),roleAuxiliary(),inputDefinition()],['payable','dependency','input']);raw.bindings=[roleParameter()];
+ const before=structuredClone(raw),prepared=prepareOwnPayrollProgrammeSource(raw);
+ assert.deepEqual(prepared.incidents,[]);assert.deepEqual(raw,before);assert.equal(prepared.presentable.programme,true);
+ assert.deepEqual(prepared.draft.programme.rules.map(r=>[r.code,r.nature]),[['301','remuneration'],['501','auxiliary']]);
+ assert.equal(prepared.draft.masterItems.length,3);assert.equal(prepared.completeness.expectedDefinitions,3);assert.equal(prepared.completeness.receivedDefinitions,3);
+ assert.equal(prepared.completeness.expectedTypedRules,2);assert.equal(prepared.completeness.typedRules,2);assert.equal(prepared.completeness.inputDefinitions,1);assert.equal(prepared.completeness.consumedInputDefinitions,1);
+ assert.ok(prepared.dependencies.some(e=>e.from==='concept:71:301'&&e.to==='concept:71:401'&&e.stage==='declared_input_binding'));
+ const sources=approvedSources(1);sources.population.employees[0].agreementCode='71';sources.monthly.batches=[];sources.population.version=ownRunHash(sources.population.employees);
+ assert.throws(()=>prepareOwnPayrollInput({...sources,programState:raw.programme}),e=>e.code==='PROGRAM_APPROVAL_REQUIRED');
+ // This synthetic approved revision is supplied by the fixture, never by preparation.
+ sources.programState={...raw.programme,program:{version:h('5'),revision:1,definition:prepared.draft.programme,salaryVersion:prepared.pins.salaryVersion,proposalId:uid(8201),approvalId:uid(8202)}};
+ const snapshot=createOwnPayrollSnapshot(prepareOwnPayrollInput(sources));assert.equal(snapshot.result.rowCount,2);
+ assert.equal(snapshot.result.rows.find(r=>r.conceptCode==='301').amount,'2.00');assert.equal(snapshot.result.rows.find(r=>r.conceptCode==='501').nature,'auxiliary');
+ assert.equal(snapshot.result.rows.some(r=>r.conceptCode==='401'),false);assert.equal(snapshot.result.employeeTotals[0].net,'2.00');
+ for(const k of['approved','executable','payrollCalculated','payrollPosted'])assert.equal(prepared[k],false);
+ assert.ok(Object.isFrozen(prepared.draft.definitions[2]));assert.equal(prepared.draft.definitions[2].role,'input');
+});
+
+test('role v2 never converts a monetary concept to an auxiliary to hide its output',()=>{
+ const raw=roleFixture([definition()],['dependency']),r=prepareOwnPayrollProgrammeSource(raw);
+ assert.ok(codes(r).includes('DEFINITION_ROLE_UNSUPPORTED'));assert.equal(r.draft.programme,null);
+ assert.equal(r.draft.definitions[0].catalogue.kind,'concept');assert.equal(r.draft.definitions[0].catalogue.nature,'remuneration');
+ assert.equal(r.draft.typedRules[0].nature,'remuneration');assert.equal(r.executable,false);
+ const invalidPayable=prepareOwnPayrollProgrammeSource(roleFixture([roleAuxiliary()],['payable']));assert.ok(codes(invalidPayable).includes('DEFINITION_ROLE_UNSUPPORTED'));assert.equal(invalidPayable.draft.programme,null);
+});
+
+test('role v2 requires an actually traversed binding with exact namespace and source code',()=>{
+ const unused=roleFixture([definition(),inputDefinition()],['payable','input']);unused.bindings=[roleParameter()];
+ const r=prepareOwnPayrollProgrammeSource(unused);assert.ok(codes(r).includes('INPUT_ROLE_UNUSED'));assert.equal(r.draft.programme,null);assert.equal(r.completeness.consumedInputDefinitions,0);
+ for(const binding of[roleParameter('402'),roleParameter('401','auxiliary_parameter')]){
+  const raw=roleFixture([definition('301',{expression:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'source',reference:'L[401]',unit:'days'},right:literal('days','1')}}}),inputDefinition()],['payable','input']);raw.bindings=[binding];
+  const failed=prepareOwnPayrollProgrammeSource(raw);assert.ok(codes(failed).includes('INPUT_ROLE_UNUSED'));assert.equal(failed.completeness.consumedInputDefinitions,0);assert.equal(failed.draft.programme,null);
+ }
+});
+
+test('role v2 cannot suppress an expression or use an input as a computed concept reference',()=>{
+ const declared=roleFixture([definition('301',{expression:roleAmount()}),roleAuxiliary(),definition('401')],['payable','dependency','input']);declared.bindings=[roleParameter()];
+ const a=prepareOwnPayrollProgrammeSource(declared);assert.ok(codes(a).includes('INPUT_ROLE_AMOUNT_DECLARED'));assert.equal(a.draft.programme,null);
+ const computed=roleFixture([definition('301',{expression:{op:'concept',code:'401',stage:'exact'}}),inputDefinition()],['payable','input']);
+ const b=prepareOwnPayrollProgrammeSource(computed);assert.ok(codes(b).includes('INPUT_ROLE_COMPUTED_REFERENCE'));assert.equal(b.draft.programme,null);assert.ok(b.dependencies.some(e=>e.to==='concept:71:401'));
+});
+
+test('role v2 rejects input roles still executed by an active prior rule and preserves history unchanged',()=>{
+ const d=definition('301',{expression:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'source',reference:'L[401]',unit:'days'},right:literal('days','1')}}}),entry=inputDefinition('401',{validFrom:'2026-01'});
+ const priorRule={code:'401',agreementCode:'71',nature:'remuneration',unit:'money',validFrom:'2026-01',validUntil:null,liquidationTypes:['monthly'],ruleReference:'Regla ficticia anterior',rounding:{precision:2,mode:'half_even'},expression:literal('money','8')};
+ const prior=ownProgramDefinition({namespaceVersion:OWN_PAYROLL_NAMESPACE_VERSION,rules:[priorRule],bindings:[],totalsPrecision:2},salaryItems([row(d),row(entry)]));
+ const raw=roleFixture([d,entry],['payable','input'],{prior});raw.bindings=[roleParameter()];const before=structuredClone(raw),r=prepareOwnPayrollProgrammeSource(raw);
+ assert.ok(codes(r).includes('INPUT_ROLE_PRIOR_RULE_ACTIVE'));assert.equal(r.draft.programme,null);assert.deepEqual(raw,before);
+ const closedPrior=ownProgramDefinition({...prior,rules:[{...priorRule,validUntil:'2026-08'}]},raw.salary.catalog.items);
+ const historical=roleFixture([d,entry],['payable','input'],{prior:closedPrior});historical.bindings=[roleParameter()];
+ const kept=prepareOwnPayrollProgrammeSource(historical);assert.deepEqual(kept.incidents,[]);assert.equal(kept.draft.programme.rules.length,closedPrior.rules.length+1);assert.deepEqual(kept.draft.programme.rules.filter(rule=>rule.code==='401'&&rule.agreementCode==='71'),closedPrior.rules);assert.equal(kept.draft.programme.rules.filter(rule=>rule.code==='301'&&rule.agreementCode==='71').length,1);assert.equal(kept.presentable.programme,true);
+});
+
+test('role v2 can consume an explicitly declared U-only phase without synthesizing an amount rule',()=>{
+ const d=definition('301',{expression:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'quantity',code:'401',unit:'days'},right:literal('days','1')}}});
+ const entry=inputDefinition('401',{quantity:quantity()}),raw=roleFixture([d,entry],['payable','input']),r=prepareOwnPayrollProgrammeSource(raw);
+ assert.deepEqual(r.incidents,[]);assert.equal(r.draft.programme.rules.length,1);assert.equal(r.completeness.consumedInputDefinitions,1);
+ assert.ok(r.dependencies.some(e=>e.to==='quantity:71:401'));assert.ok(r.trace.some(t=>t.phase==='quantity'&&t.quantity==='quantity:71:401'));
+ raw.definitions[1].quantity.stage=null;const bad=prepareOwnPayrollProgrammeSource(raw);assert.ok(codes(bad).includes('QUANTITY_PHASE_STAGE_UNRESOLVED'));assert.equal(bad.draft.programme,null);
+});
+
+test('role v2 preserves inactive, whole-source, validity, cycle and version guards',()=>{
+ const raw=roleFixture([definition('301',{expression:roleAmount()}),roleAuxiliary(),inputDefinition()],['payable','dependency','input']);raw.bindings=[roleParameter()];
+ for(const mutate of[x=>{x.definitions[2].active=false;},x=>{x.source.complete=false;},x=>{x.source.expectedDefinitions=2;},x=>{x.definitions[2].validFrom='2026-10';}]){
+  const bad=structuredClone(raw);mutate(bad);const r=prepareOwnPayrollProgrammeSource(bad);assert.equal(r.draft.programme,null);assert.equal(r.executable,false);
+ }
+ const cyclic=roleFixture([definition('301',{expression:{op:'concept',code:'302',stage:'exact'}}),definition('302',{expression:{op:'concept',code:'301',stage:'exact'}})],['payable','payable']);assert.ok(codes(prepareOwnPayrollProgrammeSource(cyclic)).includes('DEPENDENCY_CYCLE'));
+ const result=prepareOwnPayrollProgrammeSource(raw),other=structuredClone(raw);other.definitions[2].role='dependency';
+ const changed=prepareOwnPayrollProgrammeSource(other);assert.notEqual(result.pins.evidenceSha256,changed.pins.evidenceSha256);assert.equal(result.pins.salaryVersion,raw.salary.catalog.version);assert.equal(result.pins.programVersion,raw.programme.program.version);
+ const changedBase=structuredClone(raw);changedBase.programme.scopeVersion=h('9');assert.throws(()=>prepareOwnPayrollProgrammeSource(changedBase),e=>e.code==='PREPARATION_BASE_CHANGED');
+});
+
+test('role v2 U-only evidence must cover the full consumer interval, including nested phases',()=>{
+ const consumer=definition('301',{expression:{op:'multiply',left:literal('money','10'),right:{op:'divide',left:{op:'quantity',code:'401',unit:'days'},right:literal('days','1')}}});
+ const entry=inputDefinition('401',{quantity:quantity()});
+ for(const [from,until,consumerFrom,consumerUntil] of[['2026-09','2026-09','2026-09',null],['2026-09',null,'2026-08',null],['2026-09','2026-10','2026-09','2026-12']]){
+  const raw=roleFixture([{...consumer,validFrom:consumerFrom,validUntil:consumerUntil},{...entry,validFrom:from,validUntil:until}],['payable','input']),before=structuredClone(raw),r=prepareOwnPayrollProgrammeSource(raw);
+  assert.ok(codes(r).includes('INPUT_QUANTITY_VALIDITY_INSUFFICIENT'));assert.equal(r.draft.programme,null);assert.deepEqual(raw,before);
+ }
+ const inner=inputDefinition('402',{quantity:quantity(),validUntil:'2026-09'}),outer=inputDefinition('401',{quantity:quantity({op:'quantity',code:'402',unit:'days'})});
+ const nested=prepareOwnPayrollProgrammeSource(roleFixture([consumer,outer,inner],['payable','input','input']));assert.ok(codes(nested).includes('INPUT_QUANTITY_VALIDITY_INSUFFICIENT'));assert.equal(nested.draft.programme,null);
+ const bounded=roleFixture([{...consumer,validUntil:'2026-09'},{...entry,validUntil:'2026-09'}],['payable','input']),valid=prepareOwnPayrollProgrammeSource(bounded);
+ assert.deepEqual(valid.incidents,[]);assert.equal(valid.draft.programme.rules[0].validUntil,'2026-09');assert.equal(valid.presentable.programme,true);
+});
+
+
+// Source-family migration checks are synthetic. Numeric units never select an amount/quantity field.
+function sourceFamilyFixture(version,family,sourceKind){
+ const reference=family+'[301]',d=definition('301',{quantityUnit:'money',value:'42.00',expression:{op:'source',reference,unit:'money'}});
+ const raw=version===OWN_PROGRAMME_SOURCE_ROLES_VERSION?roleFixture([d],['payable']):fixture([d]);
+ raw.bindings=[{agreementCode:'71',reference,sourceSha256:h('2'),binding:{agreementCode:'71',key:'FictionalSource',unit:'money',sourceKind,sourceCode:'301',combine:'single',onMissing:'error',ruleReference:'Canal de novedad exclusivamente ficticio'}}];
+ return raw;
+}
+for(const version of[OWN_PROGRAMME_SOURCE_VERSION,OWN_PROGRAMME_SOURCE_ROLES_VERSION]){
+ for(const[family,sourceKind]of[['I','monthly_quantity'],['I','fixed_quantity'],['N','monthly_amount'],['N','fixed_amount']])test(version+' rejects the opposite source family even with identical money units '+family+' '+sourceKind,()=>{
+  const raw=sourceFamilyFixture(version,family,sourceKind),before=structuredClone(raw),r=prepareOwnPayrollProgrammeSource(raw);
+  assert.deepEqual(r.incidents.filter(i=>i.code==='SOURCE_BINDING_FAMILY_MISMATCH'),[{code:'SOURCE_BINDING_FAMILY_MISMATCH',definition:'concept:71:301',path:'amount',sourceReference:family+'[301]'}]);
+  assert.equal(r.draft.programme,null);assert.equal(r.presentable.programme,false);assert.equal(r.draft.typedRules.length,0);
+  assert.equal(r.draft.definitions[0].sourceSha256,h('e'));assert.equal(r.pins.sourceSha256,h('f'));assert.deepEqual(raw,before);
+  for(const key of['approved','executable','payrollCalculated','payrollPosted'])assert.equal(r[key],false);
+ });
+ for(const family of['I','N'])test(version+' cannot bind a source novelty to a catalogue parameter '+family,()=>{
+  const raw=sourceFamilyFixture(version,family,'parameter'),r=prepareOwnPayrollProgrammeSource(raw);
+  assert.ok(codes(r).includes('SOURCE_BINDING_FAMILY_MISMATCH'));assert.equal(r.draft.programme,null);assert.equal(r.draft.typedRules.length,0);
+  assert.equal(raw.bindings[0].binding.sourceKind,'parameter');assert.equal(raw.definitions[0].value,'42.00');
+ });
+ for(const[family,sourceKind]of[['I','monthly_amount'],['I','fixed_amount'],['N','monthly_quantity'],['N','fixed_quantity']])test(version+' preserves the explicit compatible source channel '+family+' '+sourceKind,()=>{
+  for(const combine of['single','sum'])for(const onMissing of['error','zero']){
+   const raw=sourceFamilyFixture(version,family,sourceKind);Object.assign(raw.bindings[0].binding,{combine,onMissing});const before=structuredClone(raw),r=prepareOwnPayrollProgrammeSource(raw);
+   assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);assert.deepEqual(raw,before);
+   assert.deepEqual(r.draft.programme.bindings,[raw.bindings[0].binding]);assert.deepEqual(r.draft.programme.rules[0].expression,{op:'input',key:'FictionalSource',unit:'money'});
+   assert.equal(r.draft.definitions[0].sourceSha256,h('e'));assert.equal(r.pins.sourceSha256,h('f'));assert.deepEqual(r,prepareOwnPayrollProgrammeSource(raw));
+   assert.equal(r.approved,false);assert.equal(r.executable,false);
+  }
+ });
+ test(version+' preserves unresolved-source and unit-error precedence without inventing a binding',()=>{
+  const absent=sourceFamilyFixture(version,'I','monthly_quantity');absent.bindings=[];const a=prepareOwnPayrollProgrammeSource(absent);
+  assert.ok(codes(a).includes('SOURCE_BINDING_UNRESOLVED'));assert.equal(codes(a).includes('SOURCE_BINDING_FAMILY_MISMATCH'),false);assert.deepEqual(absent.bindings,[]);
+  const unit=sourceFamilyFixture(version,'I','monthly_quantity');unit.bindings[0].binding.unit='days';const b=prepareOwnPayrollProgrammeSource(unit);
+  assert.ok(codes(b).includes('SOURCE_BINDING_UNIT_MISMATCH'));assert.equal(codes(b).includes('SOURCE_BINDING_FAMILY_MISMATCH'),false);assert.equal(b.draft.programme,null);
+ });
+ test(version+' leaves explicit non-novelty L bindings unchanged',()=>{
+  const raw=sourceFamilyFixture(version,'L','parameter'),before=structuredClone(raw),r=prepareOwnPayrollProgrammeSource(raw);
+  assert.deepEqual(r.incidents,[]);assert.equal(r.presentable.programme,true);assert.deepEqual(raw,before);assert.deepEqual(r.draft.programme.bindings,[raw.bindings[0].binding]);
+  assert.equal(r.draft.programme.rules[0].expression.key,'FictionalSource');assert.equal(r.executable,false);
+ });
+}
+
+test('distinct compatible N and I bindings reach the existing real adapter without swapping fields or replacing null with zero',()=>{
+ const d=definition('301',{quantityUnit:'money',rounding:{precision:8,mode:'exact'},expression:{op:'add',left:{op:'source',reference:'N[120]',unit:'money'},right:{op:'source',reference:'I[120]',unit:'money'}}});
+ const entry=inputDefinition('120',{quantityUnit:'money',value:null});
+ const raw=roleFixture([d,entry],['payable','input']);raw.totalsPrecision=8;
+ raw.bindings=[['N','MonthlyQuantity','monthly_quantity'],['I','MonthlyAmount','monthly_amount']].map(([family,key,sourceKind])=>({agreementCode:'71',reference:family+'[120]',sourceSha256:h('2'),binding:{agreementCode:'71',key,unit:'money',sourceKind,sourceCode:'120',combine:'single',onMissing:'error',ruleReference:'Canales separados de ensayo sintético'}}));
+ const prepared=prepareOwnPayrollProgrammeSource(raw);assert.deepEqual(prepared.incidents,[]);assert.equal(prepared.completeness.consumedInputDefinitions,1);assert.equal(prepared.draft.programme.rules.length,1);
+ const sources=approvedSources(1);sources.population.employees[0].agreementCode='71';sources.population.version=ownRunHash(sources.population.employees);
+ Object.assign(sources.monthly.batches[0].rows[0],{quantityDecimal:'1.250001',amountCents:'777'});
+ // Only the test fixture supplies this synthetic approved revision; preparation never approves it.
+ sources.programState={...raw.programme,program:{version:h('5'),revision:1,definition:prepared.draft.programme,salaryVersion:prepared.pins.salaryVersion,proposalId:uid(8501),approvalId:uid(8502)}};
+ const before=structuredClone(sources),native=prepareOwnPayrollInput(sources),facts=native.employees[0].inputs;
+ assert.equal(facts.find(i=>i.key==='MonthlyQuantity').value,'1.25000100');assert.equal(facts.find(i=>i.key==='MonthlyAmount').value,'7.77000000');
+ const result=createOwnPayrollSnapshot(native).result;assert.equal(result.rows[0].amount,'9.02000100');assert.equal(result.rowCount,1);assert.deepEqual(sources,before);
+ for(const field of['quantityDecimal','amountCents']){const missing=structuredClone(sources);missing.monthly.batches[0].rows[0][field]=null;assert.throws(()=>prepareOwnPayrollInput(missing),e=>e.code==='SOURCE_VALUE_MISSING');}
+ const explicitZero=structuredClone(sources);explicitZero.monthly.batches[0].rows[0].quantityDecimal='0';const zero=prepareOwnPayrollInput(explicitZero);
+ assert.equal(zero.employees[0].inputs.find(i=>i.key==='MonthlyQuantity').value,'0.00000000');assert.equal(createOwnPayrollSnapshot(zero).result.rows[0].amount,'7.77000000');
+ assert.equal(result.paymentExecuted,false);assert.equal(prepared.approved,false);assert.equal(prepared.executable,false);
 });

@@ -1,7 +1,7 @@
 name: Own classification and registration use
 on:
   pull_request:
-    paths: ['assets/native-employment-catalog*', 'assets/native-employee-confirmation-model.js', 'assets/native-employee-create.js', 'api/internal-employment-catalog.js', 'api/internal-native-employees.js', 'scripts/verify-classification-registration-use.mjs', 'scripts/verify-salary-day-units.mjs', 'scripts/prepare-classification-registration-use-installation.mjs', 'scripts/lib/classification-registration-use*', 'scripts/migrations/167-classification-registration-use.sql', 'tests/classification-registration*', 'docs/ENCUADRES_Y_NUEVAS_ALTAS.md', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/classification-registration-use.yml']
+    paths: ['assets/own-payroll-receipt-model.js', 'assets/own-payroll-pdf-kit.js', 'assets/own-payroll-receipt-pdf.js', 'assets/native-employment-catalog*', 'assets/native-employee-confirmation-model.js', 'assets/native-employee-create.js', 'api/internal-employment-catalog.js', 'api/internal-native-employees.js', 'scripts/verify-classification-registration-use.mjs', 'scripts/verify-salary-day-units.mjs', 'scripts/prepare-classification-registration-use-installation.mjs', 'scripts/lib/classification-registration-use*', 'scripts/migrations/167-classification-registration-use.sql', 'tests/classification-registration*', 'docs/ENCUADRES_Y_NUEVAS_ALTAS.md', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/classification-registration-use.yml']
   push:
     branches: ['master']
     paths: ['assets/native-employment-catalog*', 'assets/native-employee-confirmation-model.js', 'assets/native-employee-create.js', 'api/internal-employment-catalog.js', 'api/internal-native-employees.js', 'scripts/verify-classification-registration-use.mjs', 'scripts/verify-salary-day-units.mjs', 'scripts/prepare-classification-registration-use-installation.mjs', 'scripts/lib/classification-registration-use*', 'scripts/migrations/167-classification-registration-use.sql', 'tests/classification-registration*', 'docs/ENCUADRES_Y_NUEVAS_ALTAS.md', 'scripts/build-friendly.mjs', '.vercelignore', '.github/workflows/classification-registration-use.yml']
@@ -36,7 +36,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - name: Prepare the existing disposable QA database
         env:
           PGPASSWORD: noelia-circuit-synthetic-qa

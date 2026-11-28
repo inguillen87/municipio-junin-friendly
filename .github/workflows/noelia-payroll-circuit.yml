@@ -41,7 +41,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build and run all existing regressions
-        run: npm run build
+        run: npm run build:lab
       - name: Prepare the disposable synthetic database
         run: psql -X -h 127.0.0.1 -p 554${{ matrix.major }} -U postgres -d own_payroll_run_qa -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pgcrypto; CREATE ROLE municontrol_actions_runtime_app NOSUPERUSER NOBYPASSRLS;'
       - run: npx --no-install playwright install --with-deps chromium firefox

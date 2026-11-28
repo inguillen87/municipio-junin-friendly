@@ -1,6 +1,6 @@
 import {attendancePointLabel} from './attendance-point-label.js';
 export const PROFILE=Object.freeze({version:'zkteco-classic-reference.v1',certified:false});
-export function referenceCode(code,model=''){const values={0:'Entrada declarada',1:'Salida declarada',2:'Inicio de pausa declarado',3:'Fin de pausa declarado',4:'Inicio de tiempo extra declarado',5:'Fin de tiempo extra declarado'};return /^K20(?:\/|$)/i.test(model)?values[code]??`Estado ${code} sin referencia`:`Estado ${code} sin homologar`}
+export function referenceCode(code,model=''){const values={0:'Entrada declarada',1:'Salida declarada',2:'Inicio de pausa declarado',3:'Fin de pausa declarado',4:'Inicio de tiempo extra declarado',5:'Fin de tiempo extra declarado'};return /^(?:K20(?: Pro)?|SF300)(?:\/|$)/i.test(model)?values[code]??`Estado ${code} sin referencia`:`Estado ${code} sin homologar`}
 export function referenceMethod(code,model=''){return /^K20(?:\/|$)/i.test(model)&&code===1?'Huella · referencia SDK':`Método ${code} sin homologar`}
 export const percentage=(a,b)=>b>0?Math.max(0,Math.min(100,a/b*100)):null;
 export function periodWindow(to,days){if(!/^\d{4}-\d{2}-\d{2}$/.test(to)||!Number.isInteger(days)||days<1||days>93)throw new Error('Período inválido');const d=new Date(to+'T00:00:00Z');if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==to)throw new Error('Fecha inválida');d.setUTCDate(d.getUTCDate()-days+1);return {from:d.toISOString().slice(0,10),to}}

@@ -134,7 +134,10 @@ test('historia y precisión no confunden reglas del mismo número ni permiten vo
   assert.throws(() => ownProgramHistory(before, after), e => e.code === 'PROGRAM_HISTORY_REQUIRED');
   assert.notEqual(ownProgramRuleKey(before.rules[0], before.namespaceVersion), ownProgramRuleKey(before.rules[1], before.namespaceVersion));
   const downgrade = structuredClone(before); delete downgrade.namespaceVersion; assert.throws(() => ownProgramHistory(before, downgrade));
+  // Rounded references are within the municipal rounding policy; a rounding mode outside it is not.
   const precision = auxiliaryProgram(); precision.rules.find(r => r.code === '95').expression.left.stage = 'rounded';
+  assert.doesNotThrow(() => requireExactProgramChanges(null, precision));
+  precision.rules.find(r => r.code === '95').rounding = { precision: 2, mode: 'half_even' };
   assert.throws(() => requireExactProgramChanges(null, precision), e => e.code === 'PROGRAM_PRECISION_REQUIRED');
   assert.notEqual(ownRunHash(auxiliaryDefinitions()), ownRunHash(definitions()));
 });

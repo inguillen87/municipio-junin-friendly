@@ -4,7 +4,8 @@
 #employeeDialog .payroll-card-head {align-items:flex-start;flex-wrap:wrap;gap:12px}
 #employeeDialog .payroll-card-head>div {min-width:0;flex:1 1 220px}
 #employeeDialog .payroll-card .state-pill {white-space:normal;max-width:100%;line-height:1.5}
-#employeeDialog .payroll-amount {min-width:0;overflow-wrap:anywhere}
+#employeeDialog .payroll-amount {min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#employeeDialog .payroll-amount strong {font-variant-numeric:tabular-nums}
 #employeeDialog .payroll-amount[data-missing=true] {background:#fffaf0;border-style:dashed}
 #employeeDialog .payroll-amount[data-missing=true] strong {color:#835816;font-size:.8rem;font-weight:650}
 #employeeDialog .payroll-card-actions {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch;margin-top:16px}

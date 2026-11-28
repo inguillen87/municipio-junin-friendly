@@ -1,5 +1,11 @@
 import { WORK_AREAS, classifyWorkItem, matchesMenuQuery } from './work-area-model.js';
 import { mountLiquidacionesMenu } from './liquidaciones-menu.js';
+import { readWorkUsage, countWorkUse } from './work-area-usage.js';
+import './reason-defaults.js';
+// Texto visible de un acceso, sin las siglas decorativas (aria-hidden) que acompañan al ícono: «Personas», no «PEPersonas».
+// Las siglas de los íconos («LI», «PE») son decorativas aunque alguna página vieja no las marque como ocultas.
+const decorative=n=>n.getAttribute?.('aria-hidden')==='true'||n.classList?.contains('nav-code')||n.classList?.contains('card-code');
+const visibleLabel=item=>{const text=n=>n.nodeType===3?n.nodeValue:n.nodeType===1&&!decorative(n)?[...n.childNodes].map(text).join(''):'';return text(item).trim().replace(/\s+/g,' ');};
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n;};
 const attr=(n,key,value)=>{if(n.getAttribute(key)!==String(value))n.setAttribute(key,String(value));};
 const hidden=(n,value)=>{if(n.hidden!==value)n.hidden=value;};
@@ -44,7 +50,10 @@ export async function mountWorkAreaMenu(){
   searchBox.append(label,input,searchHelp,clear);
   const homeList=make('div',null,'mc-work-home'),areaList=make('div',null,'mc-work-groups');
   const status=make('p',null,'mc-work-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-  body.append(searchBox,homeList,areaList,status);nav.append(mobile,body);
+  // «Lo que más usás»: hasta seis accesos según el uso de esta persona en este navegador. Sólo cuenta clics por acceso;
+  // no guarda datos de personas ni de liquidaciones. Respeta los mismos permisos que el menú.
+  const frequent=make('div',null,'mc-work-frequent'),frequentTitle=make('p','Lo que más usás','mc-work-frequent-title'),frequentList=make('div',null,'mc-work-frequent-list');frequent.append(frequentTitle,frequentList);frequent.hidden=true;
+  body.append(searchBox,frequent,homeList,areaList,status);nav.append(mobile,body);
   const groups=new Map();
   for(const definition of WORK_AREAS){
     const group=definition.id==='liquidaciones'&&payroll?payroll:make('details');
@@ -85,6 +94,18 @@ export async function mountWorkAreaMenu(){
     if(current?.file==='internal-dashboard.html')return classifyWorkItem({view:(current.hash||'#inicio').slice(1),file:current.file});
     return classifyWorkItem({file:current?.file});
   }
+  const usageUser=access?.userId||access?.user?.id||access?.tenant?.id||'local';
+  const readUsage=()=>readWorkUsage(usageUser);
+  const entryKey=e=>e.route?e.route.file+(e.route.hash||''):'task:'+(e.item.dataset.task||e.item.textContent.trim());
+  function countUse(item){const e=entries.find(x=>x.item===item);if(e)countWorkUse(usageUser,entryKey(e));}
+  function renderFrequent(){
+    if(typeof frequentList.replaceChildren!=='function')return;
+    const u=readUsage(),seen=new Set();
+    const top=entries.filter(e=>e.area!=='inicio'&&permitted(e)&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied')&&u[entryKey(e)]>0)
+     .sort((a,b)=>u[entryKey(b)]-u[entryKey(a)]).filter(e=>{const k=entryKey(e);if(seen.has(k))return false;seen.add(k);return true;}).slice(0,6);
+    frequentList.replaceChildren(...top.map(e=>{const b=make('button',visibleLabel(e.item),'mc-work-frequent-item');b.type='button';b.title=(groups.get(e.area)?.label||'')+' · '+b.textContent;b.addEventListener('click',()=>{countUse(e.item);e.item.click();});return b;}));
+    hidden(frequent,!top.length||!!input.value.trim());
+  }
   function mobileState(){hidden(body,mobileMedia.matches&&!mobileOpen);attr(mobile,'aria-expanded',!body.hidden);}
   function render(){
     scheduled=false;if(suspended||!nav.isConnected)return;
@@ -93,12 +114,16 @@ export async function mountWorkAreaMenu(){
     for(const [id,g]of groups){const visible=entries.some(e=>e.area===id&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'));hidden(g.group,!visible);attr(g.group,'data-active',id===active);if(query&&visible)g.group.open=true;else if(active!==lastActive)g.group.open=id===active;}
     hidden(homeList,!entries.some(e=>e.area==='inicio'&&e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden));
     const currentLabel=groups.get(active)?.label||'Inicio';if(mobileCurrent.textContent!==currentLabel)mobileCurrent.textContent=currentLabel;
-    const statusText=query?(count?count+' accesos encontrados':'No hay accesos habilitados con ese nombre.'):'Abrí un área para ver sus tareas.';
-    if(status.textContent!==statusText)status.textContent=statusText;hidden(clear,!query);lastActive=active;mobileState();
+    const statusText=query?(count?count+(count===1?' acceso encontrado · Enter para abrir':' accesos encontrados · Enter abre el primero'):'No hay accesos habilitados con ese nombre.'):'Abrí un área para ver sus tareas.';
+    if(status.textContent!==statusText)status.textContent=statusText;hidden(clear,!query);lastActive=active;mobileState();renderFrequent();
   }
   const schedule=()=>{if(!scheduled&&!suspended){scheduled=true;queueMicrotask(render);}};
   function search(){if(input.value&&!searchOpenState)searchOpenState=new Map([...nav.querySelectorAll('details')].map(d=>[d,d.open]));if(!input.value&&searchOpenState){for(const [d,opened]of searchOpenState)d.open=opened;searchOpenState=null;}render();}
   input.addEventListener('input',search);clear.addEventListener('click',()=>{input.value='';search();input.focus();});
+  // Enter desde la búsqueda va directo al primer acceso encontrado: escribir el nombre y Enter, sin abrir menús a mano.
+  input.addEventListener('keydown',event=>{if(event.key!=='Enter'||!input.value.trim())return;event.preventDefault();
+    const first=entries.find(e=>e.item.getAttribute('data-work-filtered')==='false'&&!e.item.hidden&&!e.item.hasAttribute('data-mc-capability-denied'));
+    if(first){countUse(first.item);first.item.click();if(mobileMedia.matches){mobileOpen=false;mobileState();}}});
   mobile.addEventListener('click',()=>{mobileOpen=!mobileOpen;mobileState();if(mobileOpen)input.focus();});mobileMedia.addEventListener('change',mobileState);
   for(const [id,g]of groups)g.group.addEventListener('toggle',()=>{if(suspended||!g.group.open||input.value.trim())return;for(const [other,group]of groups)if(other!==id)group.group.open=false;});
   nav.addEventListener('keydown',event=>{
@@ -108,7 +133,7 @@ export async function mountWorkAreaMenu(){
     if(mobileMedia.matches&&mobileOpen){mobileOpen=false;mobileState();mobile.focus();}
   });
   document.addEventListener('keydown',event=>{if(suspended||!event.altKey||event.ctrlKey||event.metaKey||event.key.toLowerCase()!=='m'||document.querySelector('dialog[open]'))return;event.preventDefault();mobileOpen=true;mobileState();input.focus();input.select();});
-  nav.addEventListener('click',event=>{if(!event.target.closest('[data-work-area-item]'))return;queueMicrotask(()=>{render();if(mobileMedia.matches){mobileOpen=false;mobileState();}});});
+  nav.addEventListener('click',event=>{const used=event.target.closest('[data-work-area-item]');if(!used)return;countUse(used);queueMicrotask(()=>{render();if(mobileMedia.matches){mobileOpen=false;mobileState();}});});
   const observer=new MutationObserver(schedule);observer.observe(nav,{subtree:true,attributes:true,attributeFilter:['aria-current','hidden','data-mc-capability-denied']});
   function suspend(){suspended=true;input.value='';status.textContent='';nav.hidden=true;observer.disconnect();for(const e of entries)attr(e.item,'data-work-permission-denied','true');}
   const stateObserver=new MutationObserver(()=>{if(['denied','checking'].includes(document.documentElement.dataset.mcCapabilityState))suspend();});

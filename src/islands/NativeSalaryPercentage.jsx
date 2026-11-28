@@ -1,6 +1,6 @@
 import {useEffect,useId,useState} from 'react';
 import {salaryRowKey,salarySerialized} from '../../assets/native-salary-catalog-model.js';
-import {salaryEffectivePercentagePlan,salaryPercentageComparisonCsv} from '../../assets/native-salary-percentage-model.js';
+import {salaryCoefficientPercentage,salaryEffectivePercentagePlan,salaryPercentageComparisonCsv} from '../../assets/native-salary-percentage-model.js';
 import Definition,{salaryDefinitionTitle as title} from './NativeSalaryDefinition.jsx';
 
 const PAGE=20,clone=value=>JSON.parse(JSON.stringify(value));
@@ -11,12 +11,15 @@ export default function NativeSalaryPercentage({items,disabled,onApply,onNotice}
  const [sourceMonth,setSourceMonth]=useState(''),[startMonth,setStartMonth]=useState('');
  const [preparationMode,setPreparationMode]=useState('continuing'),[endMonth,setEndMonth]=useState('');
  const [percentage,setPercentage]=useState(''),[precision,setPrecision]=useState(''),[reference,setReference]=useState('');
+ // The increase can be typed as a percentage (2) or as a coefficient (1,02): both are the same exact increase.
+ const [increaseForm,setIncreaseForm]=useState('percentage');
+ const typed=percentage.trim().replace(',','.'),equivalent=(()=>{if(increaseForm!=='coefficient'||typed==='')return null;try{return salaryCoefficientPercentage(typed);}catch{return null;}})();
  const [query,setQuery]=useState(''),[page,setPage]=useState(0),[selection,setSelection]=useState([]),[review,setReview]=useState(null);
  useEffect(()=>{setReview(null);},[items,disabled]);
  const filtered=items.filter(row=>row.active&&row.kind==='scale'&&(!sourceMonth||row.validFrom<=sourceMonth&&(row.validUntil===null||row.validUntil>=sourceMonth))&&[row.code,row.agreementCode,row.categoryCode,row.label].join(' ').toLowerCase().includes(query.toLowerCase())).sort((a,b)=>natural.compare(a.agreementCode,b.agreementCode)||natural.compare(a.categoryCode,b.categoryCode)||natural.compare(a.code,b.code)||a.validFrom.localeCompare(b.validFrom));
  const last=Math.max(0,Math.ceil(filtered.length/PAGE)-1),currentPage=Math.min(page,last),visible=filtered.slice(currentPage*PAGE,(currentPage+1)*PAGE);
  const selectedKeys=new Set(selection.map(row=>row.key));
- const declaration=()=>({sourceMonth,percentage:percentage.replace(',','.'),precision:precision===''?null:Number(precision),ruleReference:reference.trim().normalize('NFC'),...(preparationMode==='closed_period'?{validUntil:endMonth}:{})});
+ const declaration=()=>({sourceMonth,percentage:increaseForm==='coefficient'?salaryCoefficientPercentage(typed):percentage.replace(',','.'),precision:precision===''?null:Number(precision),ruleReference:reference.trim().normalize('NFC'),...(preparationMode==='closed_period'?{validUntil:endMonth}:{})});
  const plan=()=>salaryEffectivePercentagePlan(items,selection,declaration(),startMonth);
  function edit(setter,value,filter=false){if(disabled)return;setter(value);setReview(null);if(filter)setPage(0);}
  function select(rows,checked=true){if(disabled)return;setReview(null);setSelection(previous=>{const next=new Map(previous.map(row=>[row.key,row]));for(const row of rows){const key=salaryRowKey(row);if(checked)next.set(key,{key,before:clone(row)});else next.delete(key);}return [...next.values()];});}
@@ -30,7 +33,10 @@ export default function NativeSalaryPercentage({items,disabled,onApply,onNotice}
    <label>Mes inicial del aumento<input type="month" min="1900-01" max="2099-12" value={startMonth} onChange={event=>edit(setStartMonth,event.target.value)}/></label>
    <label>Vigencia de las escalas de origen<select aria-label="Vigencia de las escalas de origen" value={preparationMode} onChange={event=>edit(setPreparationMode,event.target.value)}><option value="continuing">Continúa en el mes del aumento</option><option value="closed_period">Tiene un mes final anterior al aumento</option></select></label>
    {preparationMode==='closed_period'&&<label>Mes final de las nuevas escalas<input aria-label="Mes final de las nuevas escalas" aria-describedby={periodHelp} type="month" min="1900-01" max="2099-12" value={endMonth} onChange={event=>edit(setEndMonth,event.target.value)}/><small id={periodHelp}>Conserva las escalas anteriores. Conceptos y auxiliares mantienen sus vigencias y se revisan por separado.</small></label>}
-   <label>Porcentaje de aumento<input aria-label="Porcentaje de aumento" aria-describedby={percentageHelp} inputMode="decimal" maxLength={27} value={percentage} onChange={event=>edit(setPercentage,event.target.value)}/><small id={percentageHelp}>Porcentaje positivo explícito, sin separador de miles.</small></label>
+   <label>Cómo informás el aumento<select aria-label="Cómo informás el aumento" value={increaseForm} onChange={event=>{if(disabled)return;setIncreaseForm(event.target.value);setPercentage('');setReview(null);}}><option value="percentage">Porcentaje (2 es un 2 %)</option><option value="coefficient">Coeficiente (1,02 es un 2 %)</option></select></label>
+   {increaseForm==='coefficient'
+    ?<label>Coeficiente de aumento<input aria-label="Coeficiente de aumento" aria-describedby={percentageHelp} inputMode="decimal" maxLength={12} value={percentage} onChange={event=>edit(setPercentage,event.target.value)}/><small id={percentageHelp}>{equivalent===null?'Mayor que 1, con coma o punto decimal. Por ejemplo 1,02.':`Equivale a un aumento del ${equivalent.replace('.',',')} %. Se aplica exacto, sin redondear.`}</small></label>
+    :<label>Porcentaje de aumento<input aria-label="Porcentaje de aumento" aria-describedby={percentageHelp} inputMode="decimal" maxLength={27} value={percentage} onChange={event=>edit(setPercentage,event.target.value)}/><small id={percentageHelp}>Porcentaje positivo explícito, sin separador de miles.</small></label>}
    <label>Decimales de las nuevas escalas<select aria-label="Decimales de las nuevas escalas" aria-describedby={precisionHelp} value={precision} onChange={event=>edit(setPrecision,event.target.value)}><option value="">Elegí la precisión declarada</option>{Array.from({length:9},(_,number)=><option key={number} value={number}>{number} decimales</option>)}</select><small id={precisionHelp}>Si no alcanzan para el resultado exacto, la comparación se detiene sin redondear.</small></label>
    <label>Documento que respalda el aumento<input maxLength={180} value={reference} onChange={event=>edit(setReference,event.target.value)}/></label>
    <label>Buscar escalas por convenio, clase o código<input type="search" maxLength={160} value={query} onChange={event=>edit(setQuery,event.target.value,true)}/></label>

@@ -5,9 +5,12 @@ import http from 'node:http';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { calculateOwnPayroll } from '../assets/own-payroll-engine.js';
+import { ownProgramBrowserAssets } from './lib/own-program-browser-assets.mjs';
 import { payrollInput, employee, payrollId } from '../tests/fixtures/own-payroll-synthetic.js';
 const root = path.resolve(import.meta.dirname, '..');
-const allowed = new Map(['/assets/own-payroll-engine.js', '/assets/own-payroll-exact.js', '/assets/own-payroll-conditions.js'].map(p => [p, fs.readFileSync(path.join(root, p))]));
+// El motor está repartido en módulos: se sirve su grafo estático completo y nada más. Un módulo que falte detiene la
+// comprobación antes de abrir el navegador.
+const allowed = ownProgramBrowserAssets(name => fs.readFileSync(path.join(root, 'assets', name)), ['own-payroll-engine.js']);
 const server = http.createServer((req, res) => {
   if (req.method !== 'GET') { res.writeHead(405).end(); return; }
   if (req.url === '/') { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }).end('<!doctype html><html lang="es"><title>QA sintético del motor propio</title></html>'); return; }

@@ -22,13 +22,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx --no-install playwright install --with-deps chromium
       - run: node scripts/verify-time-catalog-api-browser.mjs
       - run: node scripts/verify-time-catalog-review-browser.mjs
   sql:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

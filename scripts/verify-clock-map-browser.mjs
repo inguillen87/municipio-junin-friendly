@@ -25,6 +25,8 @@ try {
     let mode = initialMode, release = null, held = null;
     if (mode === 'hold') held = new Promise(resolve => { release = resolve; });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, locale: 'es-AR', reducedMotion: 'reduce', serviceWorkers: 'block' });
+    // La pantalla tiene pestañas: el mapa vive en «Datos técnicos».
+    await context.addInitScript(() => { try { localStorage.setItem('mc.relojes.tab', 'tecnico'); } catch {} });
     if (zeroStatus) await context.addInitScript(() => Object.defineProperty(PerformanceResourceTiming.prototype, 'responseStatus', { configurable: true, get: () => 0 }));
     if (noObserver) await context.addInitScript(() => { window.PerformanceObserver = undefined; });
     else await context.addInitScript(() => { const NativeObserver = window.PerformanceObserver; window.__mapQaCallbacks = []; window.PerformanceObserver = class extends NativeObserver { constructor(callback) { super(callback); window.__mapQaCallbacks.push(callback); } }; });

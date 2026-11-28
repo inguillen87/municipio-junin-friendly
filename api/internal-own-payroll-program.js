@@ -8,6 +8,7 @@ import { employeeContext } from '../lib/internal-native-employees.js';
 import { salaryExact } from '../assets/native-salary-catalog-model.js';
 import { ownProgramCommand, OWN_PROGRAM_MAX_BYTES } from '../assets/own-payroll-program-model.js';
 import { PROGRAM_READ, PROGRAM_CAPS, programFail, programError, programOperation } from '../lib/internal-own-payroll-program.js';
+import { busyRetrySql } from '../lib/busy-read-retry.js';
 export const config = { api: { bodyParser: false } };
 export function createOwnProgramHandler(deps = {}) {
   const env = deps.env ?? process.env, authorize = deps.requireAccess ?? requireCompatibleInternalAccess,
@@ -27,7 +28,7 @@ export function createOwnProgramHandler(deps = {}) {
         schoolCertificateHttp.assertOrigin(req, env);
         if (schoolCertificateHttp.header(req, 'content-type').split(';')[0].trim().toLowerCase() !== 'application/json') programFail('CONTENT_TYPE', 415, 'Se requiere un formulario JSON.');
         schoolCertificateHttp.checkLength(req, OWN_PROGRAM_MAX_BYTES);
-      } else if (q.resource === 'bootstrap' && Object.keys(q).join('|') === 'resource') { operation = 'bootstrap'; input = {}; }
+      } else if ((q.resource === 'bootstrap' || q.resource === 'pending') && Object.keys(q).join('|') === 'resource') { operation = q.resource; input = {}; }
       else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
       else programFail('QUERY_INVALID', 400, 'Consulta inválida.');
       const access = await authorize(req, res, { env, requiredCapabilities: PROGRAM_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });
@@ -45,7 +46,7 @@ export function createOwnProgramHandler(deps = {}) {
         if (!principalHasCapabilities(access.principal, PROGRAM_CAPS[command.command])) programFail('FORBIDDEN', 403, 'La membresía no permite esta operación.');
         operation = 'command'; input = { body: command, key: schoolCertificateHttp.header(req, 'idempotency-key') };
       }
-      const data = await programOperation(await getSql(env), access.principal, session, operation, input);
+      const data = await programOperation(method === 'GET' ? busyRetrySql(await getSql(env)) : await getSql(env), access.principal, session, operation, input);
       if (data.replayed) res.setHeader('Idempotency-Replayed', 'true');
       return res.status(method === 'POST' && !data.replayed ? 201 : 200).json({ ok: true, data });
     } catch (e) {

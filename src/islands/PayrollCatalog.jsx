@@ -27,14 +27,19 @@ export default function PayrollCatalog({proposal,revoked=false,onDenied,request=
   const [preview,setPreview]=useState(null),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[bad,setBad]=useState(false);
   const [confirm,setConfirm]=useState(false),[checked,setChecked]=useState(false),[review,setReview]=useState(null),[pending,setPending]=useState(null),[denied,setDenied]=useState(false);
   const live=useRef(true),lock=useRef(false),dialog=useRef(null),generation=useRef(0),deny=useRef(onDenied),attemptRef=useRef(null);
-  deny.current=onDenied;
-  function withdraw(){generation.current++;setData(null);setPreview(null);setReview(null);setConfirm(false);setChecked(false);setDenied(true);}
-  useEffect(()=>{live.current=true;const logout=()=>{withdraw();live.current=false;};
-    const hide=()=>{if(document.hidden)withdraw();};const pagehide=()=>withdraw();
+  // away: the view was withdrawn only because the page was hidden. Coming back checks the access again by itself, once per
+  // return and as soon as no other operation is running; a denial, a revocation or a logout never do. It is the same read as the
+  // button: nothing is resent or recovered without the person asking.
+  const withdrawn=useRef(false),away=useRef(false),due=useRef(false),recheck=useRef(null),revokedNow=useRef(revoked);
+  deny.current=onDenied;revokedNow.current=revoked;
+  function returning(){if(!due.current||!away.current||lock.current||!live.current||document.hidden||revokedNow.current)return;due.current=false;recheck.current?.(true);}
+  function withdraw(){generation.current++;withdrawn.current=true;setData(null);setPreview(null);setReview(null);setConfirm(false);setChecked(false);setDenied(true);}
+  useEffect(()=>{live.current=true;const logout=()=>{away.current=false;withdraw();live.current=false;};
+    const hide=()=>{if(document.hidden){if(!withdrawn.current)away.current=true;withdraw();}else{due.current=true;returning();}};const pagehide=()=>withdraw();
     document.getElementById('logoutButton')?.addEventListener('click',logout);
     document.addEventListener('visibilitychange',hide);window.addEventListener('pagehide',pagehide);
     return()=>{live.current=false;generation.current++;document.getElementById('logoutButton')?.removeEventListener('click',logout);document.removeEventListener('visibilitychange',hide);window.removeEventListener('pagehide',pagehide);};},[]);
-  useEffect(()=>{if(revoked)withdraw();},[revoked]);
+  useEffect(()=>{if(revoked){away.current=false;withdraw();}},[revoked]);
   useEffect(()=>{generation.current++;setPreview(null);setReview(null);setConfirm(false);setChecked(false);},[proposal?.id,proposal?.version,proposal?.status,proposal?.draft]);
   useEffect(()=>{if(confirm)dialog.current?.showModal();else dialog.current?.close();},[confirm]);
   function current(g){return live.current&&!document.hidden&&g===generation.current;}
@@ -42,8 +47,8 @@ export default function PayrollCatalog({proposal,revoked=false,onDenied,request=
   function tell(text,error=false){if(live.current){setNotice(text);setBad(error);}}
   async function act(fn){if(!live.current||document.hidden||lock.current)return;lock.current=true;setBusy(true);try{await fn();}catch(e){
     if(live.current&&e.code!=='CATALOG_VIEW_WITHDRAWN'){tell(e.message||'La operación no se completó.',true);setPreview(null);setReview(null);setConfirm(false);setChecked(false);
-      if([401,403].includes(e.status)){withdraw();deny.current?.(e);}}
-  }finally{lock.current=false;if(live.current)setBusy(false);}}
+      if([401,403].includes(e.status)){away.current=false;withdraw();deny.current?.(e);}}
+  }finally{lock.current=false;if(live.current)setBusy(false);returning();}}
   const blocked=busy||pending!==null||denied;
   async function authority(g,expectedScope=null,approve=false){
     const result=await parameterRead({resource:'bootstrap'});insist(g);
@@ -53,7 +58,8 @@ export default function PayrollCatalog({proposal,revoked=false,onDenied,request=
     if(expectedScope&&scope!==expectedScope)throw new ParameterRequestError('Cambió el municipio, la membresía o la fuente certificada. El intento original se conserva y no se reenvía.',409,'PAYROLL_CATALOG_SCOPE_CHANGED');
     return scope;
   }
-  async function checkAccess(){await act(async()=>{const g=generation.current;await authority(g,attemptRef.current?.scopeKey);insist(g);setDenied(false);tell('Acceso al catálogo comprobado. Volvé a consultar o recuperá el intento original.');});}
+  async function checkAccess(returning=false){await act(async()=>{const g=generation.current;await authority(g,attemptRef.current?.scopeKey);insist(g);away.current=false;withdrawn.current=false;setDenied(false);tell(returning!==true?'Acceso al catálogo comprobado. Volvé a consultar o recuperá el intento original.':attemptRef.current?'Acceso comprobado al volver a la página. Consultá la activación pendiente para conocer su resultado.':'');});}
+  recheck.current=checkAccess;
   async function query(){await act(async()=>{
     const g=generation.current;setData(null);await authority(g);const result=verifyCatalogResponse(await request({resource:'catalog',period,revision}));
     insist(g);setData(result);tell(`Consulta del período ${result.catalog.period} · revisión ${result.catalog.revision}.`);
@@ -113,7 +119,7 @@ export default function PayrollCatalog({proposal,revoked=false,onDenied,request=
       <button type="submit" disabled={blocked}>Consultar valores vigentes</button>
     </form>
     {notice&&<div className="pp-status" role="status" data-error={bad} aria-live="polite">{notice}</div>}
-    {denied&&<div className="pc-impact"><p>Se retiró la vista del catálogo. Comprobá el acceso antes de volver a consultar o recuperar una activación.</p><button disabled={busy} onClick={checkAccess}>Comprobar acceso al catálogo</button></div>}
+    {denied&&!(busy&&away.current)&&<div className="pc-impact"><p>Se retiró la vista del catálogo. Comprobá el acceso antes de volver a consultar o recuperar una activación.</p><button disabled={busy} onClick={()=>checkAccess()}>Comprobar acceso al catálogo</button></div>}
     {pending&&<div className="pc-impact"><h4>Activación sin confirmación</h4><p>Conservamos el mismo intento en esta pestaña. No se presupone que falló ni se crea otro cambio. Consultá su confirmación antes de cerrar la página.</p><small>Intento: {pending.key}</small>
       <div className="pp-actions"><button disabled={busy||denied} onClick={recover}>Consultar activación pendiente</button><button disabled={busy||denied} onClick={resend}>Reenviar activación original</button></div></div>}
     {c&&<><p><strong>Período {c.period} · revisión {c.revision}</strong><small>{c.rows.length} valores activados. Cada auxiliar conserva su propia fecha de vigencia.</small></p>

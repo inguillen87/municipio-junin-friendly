@@ -38,7 +38,7 @@ export function budgetComparisonPeriodNote(model){
  return 'Año de liquidación: '+p.payrollYear+'. El PDF fue emitido en '+p.documentIssuedYear+(p.yearsDiffer?', otro año.':'.')+' La fecha de emisión no informa el ejercicio presupuestario ni acredita la vigencia anual de los cargos.';
 }
 export function budgetComparisonDocument(model){
- if(!verified.has(model))fail();const c=(label,type,width)=>({label,type,width});
+ if(!verified.has(model))fail();const c=(label,type,width)=>({label,type,width,...(type==='integer'?{align:'right'}:{})});
  return{title:'Cotejo documental con nómina',columns:[c('ID','text',7),c('Estructura del PDF','text',38),c('Cant del PDF','integer',12),c('Detalle del PDF','integer',14),c('En ambas fuentes','integer',15),c('Sólo en PDF','integer',13),c('Referencias a revisar','integer',17)],rows:model.groups.map(g=>[g.id,g.label,g.declaredQuantity,g.documentAssignments,g.present,g.documentOnly,g.ambiguous]),totals:[],
  notes:[budgetComparisonPeriodNote(model),'Control del Módulo 10: cruza ocupantes nominales del reporte presupuestario con su presencia en una liquidación concreta. Esta consulta compara presencia; todavía no incorpora la asignación histórica de cargo y estructura para la corrida elegida. La presencia no confirma el cargo liquidado; no se reasignan cargos por nombre ni semejanza.',
  'Cant se conserva literalmente del reporte ESTRUCTURA PRESUPUESTARIA DE CARGOS; este cotejo no reemplaza la norma anual aprobatoria.',
@@ -60,9 +60,9 @@ export function budgetComparisonDetailSelection(model,{differencesOnly=false,que
  return frozen({rows,totalRows:model.document.assignments+model.unassignedPayrollRows.length,state:differencesOnly?'differences':'all',stateLabel:differencesOnly?'Sólo diferencias':'Todos los ocupantes',query:query.trim()});
 }
 export function budgetComparisonDetailDocument(model,options={}){
- const selection=budgetComparisonDetailSelection(model,options),{rows,query}=selection,c=(label,type,width)=>({label,type,width});
+ const selection=budgetComparisonDetailSelection(model,options),{rows,query}=selection,c=(label,type,width)=>({label,type,width,...(type==='integer'?{align:'right'}:{})});
  return{title:'Módulo 10 · Ocupantes presupuestarios y liquidación',
-  columns:[c('ID','text',7),c('Cargo / estructura PDF','text',34),c('Cant','text',8),c('Legajo','text',11),c('Nombre según PDF','text',32),c('Situación frente a corrida','text',24),c('Legajo corrida','text',12),c('Pág.','text',7)],
+  columns:[c('ID','text',7),c('Cargo / estructura PDF','text',34),{...c('Cant','text',8),align:'right'},c('Legajo','text',11),c('Nombre según PDF','text',32),c('Situación frente a corrida','text',24),c('Legajo corrida','text',12),c('Pág.','text',7)],
   rows,totals:[],
   notes:[budgetComparisonPeriodNote(model),
    'Detalle nominal del reporte presupuestario confrontado con la presencia del legajo en una corrida concreta. El nombre proviene del PDF local; la consulta de nómina usada para este cotejo no devuelve nombres ni importes.',

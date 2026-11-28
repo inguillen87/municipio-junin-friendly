@@ -5,10 +5,11 @@ import {schoolCertificateHttp} from './internal-family-certificates.js';
 import {schoolCertificateSafeError} from '../lib/internal-family-certificates.js';
 import {readRawPrivateJson} from '../lib/private-json-body.js';
 import {employeeContext} from '../lib/internal-native-employees.js';
-import {salaryExact} from '../assets/native-salary-catalog-model.js';
+import {salaryExact,salaryKey,salaryUuid} from '../assets/native-salary-catalog-model.js';
 import {OWN_RECEIPT_READ,OWN_RECEIPT_PREPARE,OWN_RECEIPT_APPROVE,OWN_RECEIPT_SELF,ownReceiptParams,ownReceiptCommand} from '../assets/own-payroll-receipt-model.js';
 import {receiptFail,receiptError,ownReceiptOperation} from '../lib/internal-own-payroll-receipts.js';
 import {municipalDocumentIssuerProfile} from '../lib/municipal-document-issuer.js';
+import {receiptExpectedDestination,receiptApplicationCommit,receiptRuntimeBinding,receiptBindingUnavailable} from '../lib/own-receipt-runtime-binding.js';
 export const config={api:{bodyParser:false}};
 export function createOwnReceiptHandler(deps={}){
  const env=deps.env??process.env,authorize=deps.requireAccess??requireCompatibleInternalAccess,getSql=deps.getSql??getActionCenterSql,sessionFor=deps.sessionFor??actionMutationSession;
@@ -34,7 +35,15 @@ export function createOwnReceiptHandler(deps={}){
    else if(salaryExact(body,['operation','payload'])&&body.operation==='command'){operation='command';let payload;try{payload=ownReceiptCommand(body.payload);}catch{receiptFail('INPUT_INVALID',422,'Revisá la operación y su motivo.');}const caps=payload.command==='prepare'?OWN_RECEIPT_PREPARE:OWN_RECEIPT_APPROVE;if(!principalHasCapabilities(access.principal,caps))receiptFail('FORBIDDEN',403,'La cuenta no permite preparar o revisar esta emisión.');input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};}
    else receiptFail('INPUT_INVALID',400,'Formulario no admitido.');
   }
-  const data=await ownReceiptOperation(await getSql(env),access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(operation==='command'&&!data.replayed?201:200).json({ok:true,data});
+  if(['attempt','command'].includes(operation)&&!salaryKey(input.key))receiptFail('INPUT_INVALID',428,'Se requiere una referencia de intento.');
+  if(operation==='batch'&&!salaryUuid(input.id))receiptFail('INPUT_INVALID',400,'Elegí una emisión conservada.');
+  let sql;
+  try{
+   const expectedDestination=receiptExpectedDestination(env);receiptApplicationCommit(env);
+   sql=await getSql(env,{expectedDestination});
+   await receiptRuntimeBinding(sql,expectedDestination,env);
+  }catch{throw receiptBindingUnavailable();}
+  const data=await ownReceiptOperation(sql,access.principal,session,operation,input);if(data.replayed)res.setHeader('Idempotency-Replayed','true');return res.status(operation==='command'&&!data.replayed?201:200).json({ok:true,data});
  }catch(error){const safe=String(error?.code??'').startsWith('SCHOOL_CERTIFICATE_')?schoolCertificateSafeError(error):receiptError(error);return res.status(safe.status).json({ok:false,code:safe.code,error:safe.message});}};
 }
 export default createOwnReceiptHandler();

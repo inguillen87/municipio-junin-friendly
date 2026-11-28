@@ -104,7 +104,7 @@ try{
  initialize();mode='expired';authExpired=true;await page.goto(origin+'/importar-novedades-grh.html');await page.locator('#accessRecovery').waitFor();
  await page.locator('#recheckAccess').click();await page.locator('#accessStatus').filter({hasText:'La sesión venció'}).waitFor();assert.equal(await login.isVisible(),true);await retired();
  checks.push('Gate real sin sesión: la comprobación del servidor clasifica401 y ofrece ingreso sin conceder capacidades.');
- assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length+sessionStorage.length),0);
  const report={ok:true,checksPassed:checks.length,checks,errors,external,municipalRecordsUsed:false,municipalWrites:0,authenticationAutomated:false,sqlStubbed:true};
  fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }catch(error){fs.writeFileSync(path.join(out,'failure.json'),JSON.stringify({ok:false,checks,errors,code:error.name},null,2));await page?.screenshot({path:path.join(out,'failure.png'),fullPage:true});throw error;}

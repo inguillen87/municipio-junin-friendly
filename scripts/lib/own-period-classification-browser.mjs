@@ -15,11 +15,11 @@ export async function assertOwnPeriodClassificationBrowserProvenance(s,raw){
  // visible values only after the operator's explicit expansion, not innerText
  // from a collapsed DETAILS that correctly hides its UUIDs and hashes.
  if(await details.getAttribute('open')===null)await summary.click();
- assert.notEqual(await details.getAttribute('open'),null);assert.ok(await references.isVisible());
+ assert.notEqual(await details.getAttribute('open'),null);await references.waitFor({state:'visible'});assert.ok(await references.isVisible());
  assert.deepEqual(await references.locator('dt').allTextContents(),expected.map(([label])=>label));
  assert.deepEqual(await references.locator('dd').allTextContents(),expected.map(([,value])=>value));
  for(let n=0;n<expected.length;n++)assert.ok(await references.locator('dd').nth(n).isVisible(),'immutable provenance reference is visible: '+expected[n][0]);
- await summary.click();assert.equal(await details.getAttribute('open'),null);assert.ok(await references.isHidden());return{kind:proof.kind,referenceCount:expected.length};
+ await summary.click();assert.equal(await details.getAttribute('open'),null);await references.waitFor({state:'hidden'});assert.ok(await references.isHidden());return{kind:proof.kind,referenceCount:expected.length};
 }
 
 export async function verifyOwnPeriodClassificationBrowser({handlers,env,actors,setActor,period,contractId,employeeNumber,definition,bootstrap,output,check,browserName='chromium'}){

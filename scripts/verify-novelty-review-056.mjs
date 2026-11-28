@@ -1,3 +1,4 @@
+import {openNoveltyReferences} from './lib/novelty-reference-browser.mjs';
 /** Full workbench. All API requests, including POSTs, are intercepted with synthetic QA data. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,7 +47,7 @@ try {
     return route.fulfill({status:200,contentType:file.endsWith('.html')?'text/html':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':file.endsWith('.json')?'application/json':'application/octet-stream',body:fs.readFileSync(file)});
   });
   const page=await context.newPage(); page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(origin+'/novedades-nomina.html');await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
+  await page.goto(origin+'/novedades-nomina.html');await openNoveltyReferences(page);await page.locator('#entrySection:visible').waitFor();await page.locator('#preflightButton:enabled').waitFor();
   await page.locator('#periodMonth').fill('2026-09');
   await page.locator('#legajo').fill('1001');await page.locator('#conceptSourceId').fill('44');await page.locator('#quantityDecimal').fill('1');await page.locator('#preflightButton').click();
   await page.locator('#previewPanel:visible').waitFor();assert.match(await page.locator('#previewRows').innerText(),/No informado/);assert.equal(posts.length,0);checks.push('individual optional amount is null, not zero; validation sends nothing');
@@ -55,10 +56,11 @@ try {
   await page.locator('#agileClearButton').click();await page.locator('[name=sourceMode][value=bulk]').check();
   const validate=async text=>{await page.locator('#bulkSource').fill(text);await page.locator('#preflightButton').click();};
   await validate(csv(bulk));assert.equal(await page.locator('[data-review-row]').count(),25);assert.match(await page.locator('#reviewRange').innerText(),/1–25 de 60/);checks.push('60-row input starts on first 25-row page; full batch count visible');
+  /* El concepto se lee con su denominación en las filas, en el control por concepto y en el filtro; el valor sigue siendo el código. */assert.equal(await page.locator('[data-review-row="1"] td.novelty-review-concept small').innerText(),'MAYOR DEDICACION');assert.match(await page.locator('#reviewConceptRows th').first().textContent(),/^44 · MAYOR DEDICACION/);const conceptOption=page.locator('#reviewConcept option').nth(1);assert.equal(await conceptOption.getAttribute('value'),'44');assert.equal(await conceptOption.textContent(),'44 · MAYOR DEDICACION · 60 filas');checks.push('review reads the concept by name in rows, control and filter; the stored value stays the code');
   await page.locator('#reviewNext').click();assert.equal(await page.locator('[data-review-row]').first().getAttribute('data-review-row'),'26');
   await page.locator('#reviewNext').click();assert.equal(await page.locator('[data-review-row]').last().getAttribute('data-review-row'),'60');assert.equal(await page.locator('#reviewNext').isDisabled(),true);checks.push('all pages and final row accessible; next disabled at boundary');
   await page.locator('#reviewSearch').fill('100060');assert.equal(await page.locator('[data-review-row]').count(),1);assert.equal(await page.locator('#prepareButton').isEnabled(),true);
-  await page.locator('[data-review-row="60"] summary').click();assert.match(await page.locator('.novelty-row-fields').innerText(),/Última fila; dos líneas/);assert.equal(await page.evaluate(()=>window.__injected),undefined);checks.push('search preserves draft; all hidden source fields readable without HTML injection');
+  await page.locator('[data-review-row="60"] summary').click();/* the fold opens with a short transition; its text is read once shown */await page.locator('.novelty-row-fields').getByText('Última fila; dos líneas',{exact:false}).waitFor();assert.match(await page.locator('.novelty-row-fields').innerText(),/Última fila; dos líneas/);assert.equal(await page.evaluate(()=>window.__injected),undefined);checks.push('search preserves draft; all hidden source fields readable without HTML injection');
   await page.locator('#reviewReset').click();await page.locator('#reviewKind').selectOption('missing');assert.match(await page.locator('#reviewRange').innerText(),/de 40/);
   await page.locator('#reviewKind').selectOption('manual');assert.equal(await page.locator('[data-review-row]').count(),20);assert.match(await page.locator('#previewRows').innerText(),/\$ 0,00/);checks.push('missing-amount filter excludes explicit zeros; manual filter retains them');
   await page.locator('#reviewSearch').fill('absent-qa');assert.equal(await page.locator('[data-review-row]').count(),0);assert.match(await page.locator('#reviewScope').innerText(),/60 filas/);assert.equal(await page.locator('#prepareButton').isEnabled(),true);checks.push('empty view never changes the 60-row save scope');

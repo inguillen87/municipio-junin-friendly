@@ -1,0 +1,229 @@
+-- SOURCE CANDIDATE ONLY. NOT INSTALLED. No runtime/API entry point.
+-- Base: PR296 ad0d80d989b736dee52a0102ef3200b8905b65b2 (2026-11-16).
+-- Provenance: registration067/095/167; changes104 + review224; lifecycle110;
+-- adoption133 and classification177 are deliberately NOT daily area evidence.
+-- The source is guarded BEFORE all definitions and ends in ROLLBACK. A future
+-- compositor must explicitly compose/review it, preserve private ACLs and pin
+-- prerequisites. This file must never be run as an installer.
+BEGIN;
+DO $not_an_installer$ BEGIN
+ RAISE EXCEPTION 'ATTENDANCE_AREA_HISTORY_SOURCE_ONLY';
+END $not_an_installer$;
+
+-- Original code pins, not observations of a remote database. prosrc bytes are
+-- extracted unchanged from the checked-in migrations named in the manifest.
+CREATE FUNCTION public.attendance_area_history_guards_v1() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT current_setting('session_replication_role')='origin'
+ AND NOT EXISTS(
+  SELECT 1 FROM (VALUES
+   ('public.reject_immutable_source_change()','b5babe1755a00845bf4512f6379dc558d556e7ea7be5a1f6bfc932d3582a640d'),
+   ('public.native_employee_contract_guard_v1()','2abc356ccae217ac382ff9e5b82512777e36688a2ec2db3f7d430f71a9ba2dc3'),
+   ('public.native_employment_change_update_allowed_v1(public.employment_contract,public.employment_contract)','f0a939bb82a21f66b08be3568436fbc8bb51821ceacb924596ec198d17bab824'),
+   ('public.native_employment_void_update_allowed_v1(public.employment_contract,public.employment_contract)','e630190aabe7fb1d0a4f6f620c106cebbd854e1a469252eabc26de630cde6853'),
+   ('public.native_employment_change_immutable_v1()','7dcef4d8cf16a0047f31ebc8ffcaee74f33cff88f6f8af9aaee64cbd6e7c5611'),
+   ('public.native_employment_lifecycle_immutable_v1()','8e018efbdce29c342aa94757880a4e911a8f41567386c7827eb77f46b25837d5')
+  ) expected(signature,sha256)
+  LEFT JOIN pg_proc p ON p.oid=to_regprocedure(expected.signature)
+  WHERE p.oid IS NULL OR encode(sha256(convert_to(p.prosrc,'UTF8')),'hex') IS DISTINCT FROM expected.sha256)
+ AND NOT EXISTS(
+  SELECT 1 FROM (VALUES
+   ('public.employment_contract','employment_contract_batch_system','public.native_employee_contract_guard_v1()',31),
+   ('public.native_employee_registration','native_employee_registration_immutable','public.reject_immutable_source_change()',27),
+   ('public.native_employee_registration','native_employee_registration_no_truncate','public.reject_immutable_source_change()',34),
+   ('public.native_employment_change_proposal','native_employment_change_proposal_immutable','public.native_employment_change_immutable_v1()',58),
+   ('public.native_employment_change_review','native_employment_change_review_immutable','public.native_employment_change_immutable_v1()',58),
+   ('public.native_employment_lifecycle_proposal','native_employment_lifecycle_proposal_immutable','public.native_employment_lifecycle_immutable_v1()',58),
+   ('public.native_employment_lifecycle_review','native_employment_lifecycle_review_immutable','public.native_employment_lifecycle_immutable_v1()',58)
+  ) expected(relation_name,trigger_name,signature,trigger_type)
+  LEFT JOIN pg_trigger t ON t.tgrelid=to_regclass(expected.relation_name) AND t.tgname=expected.trigger_name
+  WHERE t.oid IS NULL OR t.tgenabled NOT IN('O','A') OR t.tgfoid IS DISTINCT FROM to_regprocedure(expected.signature)
+   OR t.tgtype<>expected.trigger_type OR t.tgqual IS NOT NULL OR t.tgnargs<>0)
+$$;
+
+CREATE FUNCTION public.attendance_area_history_area_v1(snapshot jsonb) RETURNS jsonb
+LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE organization_value text:=snapshot->>'organization_unit_source_id';sector_value text:=snapshot->>'sector_source_id';
+ organization_label text:=snapshot#>>'{source_payload,employment,organizationName}';sector_label text:=snapshot#>>'{source_payload,employment,sectorName}';
+ label_value text;
+BEGIN
+ IF organization_value IS NULL OR organization_value!~'^(0|[1-9][0-9]{0,18})$'
+ OR(sector_value IS NOT NULL AND sector_value!~'^(0|[1-9][0-9]{0,18})$')
+ OR organization_label IS NULL OR(sector_value IS NULL)<>(sector_label IS NULL) THEN RETURN NULL;END IF;
+ FOREACH label_value IN ARRAY ARRAY[organization_label,sector_label] LOOP
+  IF label_value IS NULL THEN CONTINUE;END IF;
+  IF length(label_value) NOT BETWEEN 1 AND 160 OR label_value<>btrim(label_value) OR label_value<>normalize(label_value,NFC)
+  OR label_value~'[<>[:cntrl:]]' OR label_value~U&'[\00AD\0600-\0605\061C\06DD\070F\0890-\0891\08E2\180E\200B-\200F\202A-\202E\2060-\2064\2066-\206F\FEFF\FFF9-\FFFB\+0110BD\+0110CD\+013430-\+01343F\+01BCA0-\+01BCA3\+01D173-\+01D17A\+0E0001\+0E0020-\+0E007F]'
+  THEN RETURN NULL;END IF;
+ END LOOP;
+ RETURN jsonb_build_object('organizationUnitSourceId',organization_value,'sectorSourceId',sector_value,
+  'organizationName',organization_label,'sectorName',sector_label);
+END $$;
+
+-- INTERNAL ONLY. ctx must be produced by attendance_area_context_v1 after
+-- authenticating the session; this helper itself NEVER grants user authority.
+-- STABLE keeps every nested SELECT in the invoking statement's MVCC snapshot.
+-- The facade must materialize this result and limit its population in SQL
+-- BEFORE joining marks or projecting contract identity to the browser.
+CREATE FUNCTION public.attendance_area_history_v1(ctx jsonb,target uuid,first_date date,last_date date DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp SET timezone='UTC' AS $$
+DECLARE c public.employment_contract;n public.native_employee_registration;
+ change_row public.native_employment_change_review;change_proposal public.native_employment_change_proposal;
+ life_row public.native_employment_lifecycle_review;life_proposal public.native_employment_lifecycle_proposal;
+ answer jsonb;initial_snapshot jsonb;previous_snapshot jsonb;initial_area jsonb;before_area jsonb;after_area jsonb;
+ active_intervals jsonb;expected_intervals jsonb;last_interval jsonb;change_ids jsonb:='[]';life_ids jsonb:='[]';
+ chain_evidence jsonb:='[]';life_evidence jsonb:='[]';source_evidence jsonb;reason_value text;
+ change_count integer;life_count integer;revision_value integer;interval_count integer;source_version text;
+BEGIN
+ IF ctx IS NULL OR jsonb_typeof(ctx)<>'object' OR target IS NULL OR first_date IS NULL
+ OR first_date NOT BETWEEN DATE '1900-01-01' AND DATE '2099-12-31'
+ OR(last_date IS NOT NULL AND(last_date<first_date OR last_date>DATE '2099-12-31'))
+ OR ctx->>'tenantId' IS NULL OR NOT pg_input_is_valid(ctx->>'tenantId','uuid')
+ OR ctx->>'sourceBindingId' IS NULL OR NOT pg_input_is_valid(ctx->>'sourceBindingId','uuid')
+ OR ctx->>'sourceCompanyId' IS NULL OR ctx->>'sourceCompanyId'!~'^(0|[1-9][0-9]{0,18})$'
+ OR NOT pg_input_is_valid(ctx->>'sourceCompanyId','bigint') OR ctx->>'sourceDatabase' IS NULL
+ THEN RAISE EXCEPTION 'ATTENDANCE_AREA_HISTORY_INPUT_INVALID';END IF;
+ answer:=jsonb_build_object('version','attendance-area-history.v1','status','blocked','contractId',target,
+  'validFrom',to_char(first_date,'YYYY-MM-DD'),'validUntil',CASE WHEN last_date IS NULL THEN NULL ELSE to_char(last_date,'YYYY-MM-DD') END,
+  'area',NULL,'evidence',NULL,'reasons','[]'::jsonb);
+ IF NOT EXISTS(SELECT 1 FROM public.platform_tenant_source_binding b JOIN public.platform_tenant t ON t.id=b.tenant_id AND t.status='active'
+  WHERE b.id=(ctx->>'sourceBindingId')::uuid AND b.tenant_id=(ctx->>'tenantId')::uuid AND b.verified
+   AND b.source_company_id=(ctx->>'sourceCompanyId')::bigint AND b.source_database=ctx->>'sourceDatabase')
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_SCOPE_MISMATCH'));END IF;
+ SELECT * INTO c FROM public.employment_contract ec WHERE ec.id=target AND ec.tenant_id=(ctx->>'tenantId')::uuid
+  AND ec.legacy_company_id=(ctx->>'sourceCompanyId')::bigint AND ec.source_system='MUNICONTROL' AND ec.source_batch_id IS NULL;
+ IF NOT FOUND THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_NATIVE_PROVENANCE_REQUIRED'));END IF;
+ -- An adoption timestamp records ownership transfer, not the day an area began.
+ IF c.source_payload#>>'{native,origin}'='GRH' OR(c.source_payload->'native')?'adoptionProposalId'
+ OR(c.source_payload->'native')?'adoptionReviewId' OR EXISTS(SELECT 1 FROM public.employment_adoption_application a WHERE a.contract_id=target)
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_NATIVE_PROVENANCE_REQUIRED'));END IF;
+ SELECT * INTO n FROM public.native_employee_registration r WHERE r.contract_id=target AND r.person_id=c.person_id
+  AND r.tenant_id=(ctx->>'tenantId')::uuid AND r.source_binding_id=(ctx->>'sourceBindingId')::uuid;
+ IF NOT FOUND OR c.source_payload#>>'{native,registrationId}' IS DISTINCT FROM n.id::text
+ OR c.source_payload#>'{native,identityDeclared}' IS DISTINCT FROM 'true'::jsonb
+ OR c.source_payload#>>'{native,createdAt}' IS NULL OR NOT pg_input_is_valid(c.source_payload#>>'{native,createdAt}','timestamptz')
+ OR c.start_date IS NULL OR c.start_date NOT BETWEEN DATE '1900-01-01' AND DATE '2099-12-31'
+ OR(c.end_date IS NOT NULL AND(c.end_date<c.start_date OR c.end_date>DATE '2099-12-31'))
+ OR public.attendance_area_history_guards_v1() IS NOT TRUE
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_REGISTRATION_UNPROVEN'));END IF;
+ IF(c.source_payload#>>'{native,createdAt}')::timestamptz IS DISTINCT FROM n.created_at
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_REGISTRATION_UNPROVEN'));END IF;
+ -- Withdrawal224 denies the registration itself; it is not an end-date event.
+ IF EXISTS(SELECT 1 FROM public.native_employment_void_review r WHERE r.contract_id=target AND r.decision='approve')
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_WITHDRAWN'));END IF;
+ IF c.status IS DISTINCT FROM 'active'
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_REGISTRATION_UNPROVEN'));END IF;
+
+ SELECT count(*) INTO change_count FROM public.native_employment_change_review r
+  WHERE r.contract_id=target AND r.decision='approve';
+ SELECT count(*) INTO life_count FROM public.native_employment_lifecycle_review r
+  WHERE r.contract_id=target AND r.decision='approve';
+ IF change_count>100 OR life_count>100 THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_INCOMPLETE'));END IF;
+ SELECT r.before_contract INTO initial_snapshot FROM public.native_employment_change_review r
+  WHERE r.contract_id=target AND r.decision='approve' ORDER BY r.revision LIMIT 1;
+ -- With no approved change, guard-pinned immutable canonical fields ARE the
+ -- original registration projection. This is not a current-area fallback.
+ initial_snapshot:=coalesce(initial_snapshot,to_jsonb(c));previous_snapshot:=initial_snapshot;
+ initial_area:=public.attendance_area_history_area_v1(initial_snapshot);
+ IF initial_area IS NULL OR initial_snapshot->>'id' IS DISTINCT FROM target::text
+ OR initial_snapshot->>'tenant_id' IS DISTINCT FROM n.tenant_id::text
+ OR initial_snapshot->>'person_id' IS DISTINCT FROM n.person_id::text
+ OR initial_snapshot#>>'{source_payload,native,registrationId}' IS DISTINCT FROM n.id::text
+ OR initial_snapshot->>'source_system' IS DISTINCT FROM 'MUNICONTROL'
+ OR initial_snapshot->'source_batch_id' IS DISTINCT FROM 'null'::jsonb
+ OR initial_snapshot->>'start_date' IS DISTINCT FROM to_char(c.start_date,'YYYY-MM-DD')
+ OR initial_snapshot->>'end_date' IS DISTINCT FROM (CASE WHEN c.end_date IS NULL THEN NULL ELSE to_char(c.end_date,'YYYY-MM-DD') END)
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_REGISTRATION_UNPROVEN'));END IF;
+ revision_value:=0;
+ FOR change_row IN SELECT r.* FROM public.native_employment_change_review r WHERE r.contract_id=target AND r.decision='approve' ORDER BY r.revision LOOP
+  revision_value:=revision_value+1;
+  SELECT * INTO change_proposal FROM public.native_employment_change_proposal p WHERE p.id=change_row.proposal_id;
+  IF NOT FOUND OR change_row.revision<>revision_value OR change_proposal.base_revision<>revision_value-1
+  OR change_row.tenant_id<>n.tenant_id OR change_row.source_binding_id<>n.source_binding_id
+  OR change_proposal.tenant_id<>n.tenant_id OR change_proposal.source_binding_id<>n.source_binding_id
+  OR change_proposal.contract_id<>target OR change_proposal.registration_id<>n.id
+  OR change_row.applied_xid IS NULL OR change_row.actor_membership_id=change_proposal.actor_membership_id
+  OR change_row.actor_person_id=change_proposal.actor_person_id OR change_row.actor_email=change_proposal.actor_email
+  OR change_row.before_contract IS DISTINCT FROM change_proposal.before_contract
+  OR change_row.after_contract IS DISTINCT FROM change_proposal.after_contract
+  OR change_row.before_contract IS DISTINCT FROM previous_snapshot
+  OR(change_row.before_contract-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'])
+   IS DISTINCT FROM(change_row.after_contract-ARRAY['agreement_code','category_code','organization_unit_source_id','sector_source_id','source_payload'])
+  OR((change_row.before_contract->'source_payload')-'employment') IS DISTINCT FROM((change_row.after_contract->'source_payload')-'employment')
+  THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_CHAIN_INVALID'));END IF;
+  before_area:=public.attendance_area_history_area_v1(change_row.before_contract);
+  after_area:=public.attendance_area_history_area_v1(change_row.after_contract);
+  IF before_area IS NULL OR after_area IS NULL THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_CHAIN_INVALID'));END IF;
+  -- The old writer has no effectiveFrom; neither approval time nor creation
+  -- time can establish an area change, including a change away and back.
+  IF before_area IS DISTINCT FROM after_area THEN reason_value:='AREA_HISTORY_EFFECTIVITY_REQUIRED';END IF;
+  change_ids:=change_ids||jsonb_build_array(change_row.id);
+  chain_evidence:=chain_evidence||jsonb_build_array(jsonb_build_object('proposalId',change_proposal.id,'approvalId',change_row.id,
+   'revision',change_row.revision,'proposalSha256',change_proposal.request_sha256,'reviewSha256',change_row.request_sha256,
+   'reviewedAt',change_row.reviewed_at,'employmentVersion',change_row.employment_version,
+   'beforeSha256',encode(sha256(convert_to(change_row.before_contract::text,'UTF8')),'hex'),
+   'afterSha256',encode(sha256(convert_to(change_row.after_contract::text,'UTF8')),'hex')));
+  previous_snapshot:=change_row.after_contract;
+ END LOOP;
+ IF revision_value<>change_count OR previous_snapshot IS DISTINCT FROM to_jsonb(c)
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_CHAIN_INVALID'));END IF;
+ IF reason_value IS NOT NULL THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array(reason_value));END IF;
+
+ active_intervals:=jsonb_build_array(jsonb_build_object('startDate',to_char(c.start_date,'YYYY-MM-DD'),
+  'endDate',CASE WHEN c.end_date IS NULL THEN NULL ELSE to_char(c.end_date,'YYYY-MM-DD') END));
+ revision_value:=0;
+ FOR life_row IN SELECT r.* FROM public.native_employment_lifecycle_review r WHERE r.contract_id=target AND r.decision='approve' ORDER BY r.revision LOOP
+  revision_value:=revision_value+1;
+  SELECT * INTO life_proposal FROM public.native_employment_lifecycle_proposal p WHERE p.id=life_row.proposal_id;
+  IF NOT FOUND OR life_row.revision<>revision_value OR life_proposal.base_revision<>revision_value-1
+  OR life_row.tenant_id<>n.tenant_id OR life_row.source_binding_id<>n.source_binding_id
+  OR life_proposal.tenant_id<>n.tenant_id OR life_proposal.source_binding_id<>n.source_binding_id
+  OR life_proposal.contract_id<>target OR life_proposal.registration_id<>n.id OR life_row.applied_xid IS NULL
+  OR life_row.actor_membership_id=life_proposal.actor_membership_id OR life_row.actor_person_id=life_proposal.actor_person_id
+  OR life_row.actor_email=life_proposal.actor_email OR life_row.before_contract IS DISTINCT FROM life_proposal.before_contract
+  OR life_row.after_contract IS DISTINCT FROM life_proposal.after_contract
+  OR life_row.before_contract->'intervals' IS DISTINCT FROM active_intervals
+  OR(life_row.before_contract-'intervals') IS DISTINCT FROM(life_row.after_contract-'intervals')
+  OR life_row.before_contract#>>'{contract,id}' IS DISTINCT FROM target::text
+  OR life_row.before_contract#>>'{contract,tenant_id}' IS DISTINCT FROM n.tenant_id::text
+  OR life_row.before_contract#>>'{contract,source_payload,native,registrationId}' IS DISTINCT FROM n.id::text
+  OR public.attendance_area_history_area_v1(life_row.before_contract->'contract') IS DISTINCT FROM initial_area
+  THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+  interval_count:=jsonb_array_length(active_intervals);last_interval:=active_intervals->(interval_count-1);
+  IF life_proposal.movement='terminate' THEN
+   IF last_interval->>'endDate' IS NOT NULL OR life_proposal.movement_date<(last_interval->>'startDate')::date
+   THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+   expected_intervals:=jsonb_set(active_intervals,ARRAY[(interval_count-1)::text,'endDate'],to_jsonb(to_char(life_proposal.movement_date,'YYYY-MM-DD')),false);
+  ELSIF life_proposal.movement='reenter' THEN
+   IF last_interval->>'endDate' IS NULL OR life_proposal.movement_date<=(last_interval->>'endDate')::date OR interval_count>=51
+   THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+   expected_intervals:=active_intervals||jsonb_build_array(jsonb_build_object('startDate',to_char(life_proposal.movement_date,'YYYY-MM-DD'),'endDate',NULL));
+  ELSE RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+  IF life_row.after_contract->'intervals' IS DISTINCT FROM expected_intervals
+  THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+  active_intervals:=expected_intervals;life_ids:=life_ids||jsonb_build_array(life_row.id);
+  life_evidence:=life_evidence||jsonb_build_array(jsonb_build_object('proposalId',life_proposal.id,'approvalId',life_row.id,
+   'revision',life_row.revision,'proposalSha256',life_proposal.request_sha256,'reviewSha256',life_row.request_sha256,
+   'reviewedAt',life_row.reviewed_at,'movement',life_proposal.movement,'movementDate',life_proposal.movement_date,
+   'employmentVersion',life_row.employment_version,'intervals',active_intervals));
+ END LOOP;
+ IF revision_value<>life_count THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_LIFECYCLE_INVALID'));END IF;
+ IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(active_intervals) item WHERE(item->>'startDate')::date<=first_date
+  AND(item->>'endDate' IS NULL OR(last_date IS NOT NULL AND(item->>'endDate')::date>=last_date)))
+ THEN RETURN answer||jsonb_build_object('reasons',jsonb_build_array('AREA_HISTORY_RANGE_NOT_ACTIVE'));END IF;
+ source_evidence:=jsonb_build_object('version','attendance-area-history-source.v1','tenantId',n.tenant_id,'sourceBindingId',n.source_binding_id,
+  'contractId',target,'validFrom',first_date,'validUntil',last_date,'registrationId',n.id,'registrationRequestSha256',n.request_sha256,
+  'registrationCatalogSha256',n.catalog_sha256,'registeredAt',n.created_at,'startDate',c.start_date,'endDate',c.end_date,
+  'area',initial_area,'changes',chain_evidence,'lifecycle',life_evidence,'withdrawn',false,
+  'guardContract','native-registration-area-chain.067.104.110.224.v1');
+ source_version:=encode(sha256(convert_to(source_evidence::text,'UTF8')),'hex');
+ RETURN answer||jsonb_build_object('status','resolved','area',initial_area||jsonb_build_object('areaLabel',
+  (initial_area->>'organizationName')||CASE WHEN initial_area->>'sectorName' IS NULL THEN '' ELSE ' / '||(initial_area->>'sectorName') END),
+  'evidence',jsonb_build_object('sourceVersion',source_version,'registrationId',n.id,'registrationRequestSha256',n.request_sha256,
+   'registrationCatalogSha256',n.catalog_sha256,'registeredAt',n.created_at,'changeApprovalIds',change_ids,'lifecycleApprovalIds',life_ids));
+END $$;
+
+REVOKE ALL ON FUNCTION public.attendance_area_history_guards_v1(),
+ public.attendance_area_history_area_v1(jsonb),
+ public.attendance_area_history_v1(jsonb,uuid,date,date) FROM PUBLIC,municontrol_actions_runtime_app;
+ROLLBACK;

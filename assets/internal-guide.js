@@ -48,15 +48,21 @@
       ]
     },
     payroll: {
-      sectionId: 'nomina', title: 'Control de nómina',
+      sectionId: 'nomina', title: 'Liquidaciones',
+      // Monthly flow, in the order the work happens. Sidebar entries exist on every Liquidaciones screen;
+      // steps whose entry is folded or not allowed for the account are skipped automatically.
       tour: [
-        ['.page-head', 'Regla principal', 'La pantalla distingue claramente control operativo y publicación ejecutiva.'],
-        ['.notice', 'Advertencia de cierre', 'Una fecha reciente no implica que la liquidación esté cerrada.'],
-        ['#runsTitle', 'Corridas', 'Compará el último cierre con el período actualmente abierto.'],
-        ['#reconciliationTitle', 'Conciliación', 'Validá componentes y diferencia antes de usar el neto.'],
-        ['#auditTitle', 'Trazabilidad', 'Conservá fuente, regla y limitaciones junto con cada cifra.']
+        ['a[href="/novedades"], a[href^="/novedades-nomina"]', '1 · Novedades del mes', 'Cargá horas, adicionales, descuentos y licencias. Elegí el concepto de la lista y buscá a la persona por legajo o nombre.'],
+        ['[data-task="calculo"]', '2 · Calcular', 'Elegí período, tipo y alcance. Si falta algo, la pantalla te muestra qué y dónde resolverlo antes de calcular.'],
+        ['[data-task="decisiones"]', '3 · Revisar y confirmar', 'Revisá el resultado por persona y por concepto. Si hay un error, anulá y volvé a calcular; nada se pierde.'],
+        ['[data-task="cierre"]', '4 · Cerrar la liquidación', 'Al cerrar, el período queda firme y se habilitan recibos, banco y reportes oficiales.'],
+        ['[data-task="recibos"]', '5 · Recibos', 'Generá y descargá los recibos del período cerrado.'],
+        ['[data-task="banco"]', '6 · Archivo para el banco', 'Prepará el archivo de acreditación con el formato del banco, listo para subir.'],
+        ['[data-task="reportes"]', '7 · Reportes y exportes', 'Descargá reportes, aportes y descuentos por entidad en Excel o en el formato que pide cada organismo.'],
+        ['[data-task="parametros"], [data-task="reglas"]', 'Configuración', 'Maestro salarial y reglas de cálculo: los prepara quien administra y los aprueba otra persona antes de usarse.']
       ],
       explain: [
+        ['[data-own-coverage]', 'Qué falta para calcular', 'Lista en orden lo que falta (maestro, reglas, aprobación) con el botón al lugar exacto.'],
         ['.notice', 'Estado de corrida', 'Evita tratar una preliquidación como resultado financiero definitivo.'],
         ['#reconciliationTitle', 'Conciliación', 'Comprueba que los totales explícitos de GRH cierren dentro de tolerancia.'],
         ['#historyTitle', 'Historial', 'Oculta importes de períodos que no superan el contrato de publicación.']
@@ -64,17 +70,18 @@
     },
     'payroll-novelties': {
       sectionId: 'novedades', title: 'Novedades de nómina',
+      // Current Novedades layout: three tabs; the guided form asks «¿A quién?» and «¿Qué novedad?».
       tour: [
-        ['.page-head', 'Alcance seguro', 'La aprobación sólo habilita una salida exportable; no calcula haberes ni escribe en GRH.'],
-        ['#entrySection', 'Carga y preflight', 'Prepará una fila o un CSV y corregí su estructura antes de crear un lote trazable.'],
-        ['#previewPanel', 'Previsualización', 'Revisá legajo, concepto, unidades, importe y observación antes de guardar.'],
-        ['#batchesTitle', 'Circuito de aprobación', 'Los comandos dependen del estado del lote y de las capacidades efectivas informadas por el backend.'],
-        ['#detailPanel', 'Detalle y exportación', 'Consultá validaciones y descargá únicamente lotes aprobados para exportar.']
+        ['#mcTab-cargar', 'Cargar novedades', 'La carga del mes: elegís personas y concepto, y queda lista para revisar y aprobar.'],
+        ['[data-n-search]', '1 · ¿A quién?', 'Escribí un legajo o un apellido. También podés pegar varios legajos separados por coma.'],
+        ['[data-n-concept]', '2 · ¿Qué novedad?', 'Buscá el concepto por código o por nombre en la lista de GRH; no hace falta saberlo de memoria.'],
+        ['#mcTab-fijas', 'Novedades fijas', 'Las que se repiten todos los meses hasta su vencimiento: altas, vigencias y bajas.'],
+        ['#mcTab-otras', 'Archivos y lotes anteriores', 'Importar planilla o TXT/CSV, preparte de relojes, y anular o corregir lotes ya cargados.']
       ],
       explain: [
-        ['.boundary', 'Límite operativo', 'Esta etapa no modifica GRH, cálculo de haberes ni movimientos laborales.'],
-        ['#entrySection', 'Carga individual o masiva', 'Ambos modos usan el mismo contrato, límites y validaciones determinísticas.'],
-        ['#batchesTitle', 'Maker-checker', 'La preparación, el envío y la decisión quedan separados y auditados.']
+        ['.boundary', 'Qué hace esta pantalla', 'Acá se cargan y se aprueban novedades. No cambia GRH ni liquida: el cálculo se hace después, en Liquidaciones.'],
+        ['#entrySection', 'De a una o de a muchas', 'Individual, rápida, planilla o archivo: todas pasan los mismos controles antes de guardar.'],
+        ['#batchesTitle', 'Dos personas', 'Una persona prepara el lote y otra lo aprueba o lo rechaza. Queda registro de cada paso.']
       ]
     },
     actions: {
@@ -200,7 +207,7 @@
     quality: {
       sectionId: 'calidad', title: 'Calidad operativa de datos',
       tour: [
-        ['#summaryPanel', 'Incidencias registradas', 'Separá total, abiertas y severidad sin convertirlas en un puntaje sintético.'],
+        ['#summaryPanel', 'Problemas encontrados', 'Mirá el total, cuántos siguen abiertos y su gravedad. No se resumen en un puntaje.'],
         ['#domainsPanel', 'Controles materializados', 'Cada bloque explica qué control existe y qué parte todavía no fue evaluada.'],
         ['#lineagePanel', 'Fuente y corte', 'Confirmá lote, fecha de corte, validación y filas informadas antes de interpretar un cero.'],
         ['#issuesPanel', 'Bandeja priorizada', 'Filtrá por severidad, estado, fuente, entidad o código sin exponer valores observados ni datos personales.'],
@@ -310,16 +317,17 @@
     style.id = 'mcGuideStyles';
     style.textContent = [
       '.mc-guide-button{min-height:44px;padding:8px 12px;border:1px solid #9fb1c1;border-radius:8px;background:#fff;color:#0b2940;font:750 12px/1.1 system-ui,sans-serif;cursor:pointer}',
-      '.mc-guide-button:hover,.mc-guide-button:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.16);outline-offset:2px}',
+      '.mc-guide-button:hover{border-color:#0f766e}.mc-guide-button:focus-visible{border-color:#0f766e;outline:3px solid #0f766e;outline-offset:2px}',
+      '@media(min-width:521px){.mc-guide-button{white-space:nowrap}}',
       '.mc-guide-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:18px 0;padding:14px 16px;border:1px solid #b9d8d3;border-left:4px solid #0f766e;border-radius:10px;background:#f3faf8;color:#102f3f;font:500 13px/1.45 system-ui,sans-serif}',
-      '.mc-guide-banner strong{display:block;margin-bottom:2px;color:#082b3d;font-size:14px}.mc-guide-banner-actions{display:flex;gap:8px;flex:0 0 auto}.mc-guide-banner button{min-height:42px;padding:8px 12px;border:1px solid #8ca8a4;border-radius:7px;background:#fff;color:#0b2940;font-weight:750;cursor:pointer}.mc-guide-banner button:first-child{border-color:#0f766e;background:#0f766e;color:#fff}',
+      '.mc-guide-banner strong{display:block;margin-bottom:2px;color:#082b3d;font-size:14px}.mc-guide-banner-actions{display:flex;gap:8px;flex:0 0 auto}.mc-guide-banner button{min-height:44px;padding:8px 14px;border:1px solid #8ca8a4;border-radius:7px;background:#fff;color:#0b2940;font-weight:750;cursor:pointer}.mc-guide-banner button:first-child{border-color:#0f766e;background:#0f766e;color:#fff}',
       '.mc-guide-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(5,22,34,.42)}',
       '.mc-guide-drawer{position:fixed;z-index:2147483001;top:0;right:0;width:min(440px,100vw);height:100dvh;overflow:auto;background:#fff;color:#173042;box-shadow:-18px 0 50px rgba(7,29,45,.22);font:500 14px/1.5 system-ui,sans-serif}',
       '.mc-guide-drawer-head{position:sticky;top:0;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:24px 24px 18px;border-bottom:1px solid #dce5ea;background:#fff}.mc-guide-kicker{color:#0f766e;font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}.mc-guide-drawer h2{margin:4px 0 0;color:#082b3d;font-size:24px;line-height:1.15}.mc-guide-close{width:44px;height:44px;border:1px solid #c6d2d9;border-radius:8px;background:#fff;color:#173042;font-size:22px;cursor:pointer}',
-      '.mc-guide-body{padding:22px 24px 36px}.mc-guide-purpose{margin:0 0 18px;color:#344f5f}.mc-guide-note{padding:13px 14px;border-left:3px solid #b07b16;background:#fff9eb;color:#574316}.mc-guide-body h3{margin:24px 0 10px;color:#0b2940;font-size:15px}.mc-guide-task{display:block;margin:8px 0;padding:13px 14px;border:1px solid #d6e0e5;border-radius:9px;color:#16394a;text-decoration:none}.mc-guide-task:hover,.mc-guide-task:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.12)}.mc-guide-task strong{display:block;color:#082b3d}.mc-guide-task span{display:block;margin-top:3px;color:#5b7180;font-size:12px}.mc-guide-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:22px}.mc-guide-action{display:flex;align-items:center;justify-content:center;min-height:46px;padding:9px 12px;border:1px solid #0f766e;border-radius:8px;background:#fff;color:#0b554f;font-weight:800;text-align:center;text-decoration:none;cursor:pointer}.mc-guide-action.primary{background:#0f766e;color:#fff}.mc-guide-meta{margin-top:20px;padding-top:16px;border-top:1px solid #dce5ea;color:#657b88;font-size:11px}',
-      '.mc-explain-button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:8px;border:1px solid #9fb1c1;border-radius:50%;background:#fff;color:#0b554f;font:850 12px/1 system-ui,sans-serif;vertical-align:middle;cursor:pointer}.mc-explain-button:hover,.mc-explain-button:focus-visible{border-color:#0f766e;outline:3px solid rgba(15,118,110,.14)}',
+      '.mc-guide-body{padding:22px 24px 36px}.mc-guide-purpose{margin:0 0 18px;color:#344f5f}.mc-guide-note{padding:13px 14px;border-left:3px solid #b07b16;background:#fff9eb;color:#574316}.mc-guide-body h3{margin:24px 0 10px;color:#0b2940;font-size:15px}.mc-guide-task{display:block;margin:8px 0;padding:13px 14px;border:1px solid #d6e0e5;border-radius:9px;color:#16394a;text-decoration:none}.mc-guide-task:hover{border-color:#0f766e}.mc-guide-task:focus-visible{border-color:#0f766e;outline:3px solid #0f766e;outline-offset:2px}.mc-guide-task strong{display:block;color:#082b3d}.mc-guide-task span{display:block;margin-top:3px;color:#5b7180;font-size:12px}.mc-guide-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:22px}.mc-guide-action{display:flex;align-items:center;justify-content:center;min-height:46px;padding:9px 12px;border:1px solid #0f766e;border-radius:8px;background:#fff;color:#0b554f;font-weight:800;text-align:center;text-decoration:none;cursor:pointer}.mc-guide-action.primary{background:#0f766e;color:#fff}.mc-guide-meta{margin-top:20px;padding-top:16px;border-top:1px solid #dce5ea;color:#657b88;font-size:11px}',
+      '.mc-explain-button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;margin-left:8px;border:1px solid #9fb1c1;border-radius:50%;background:#fff;color:#0b554f;font:850 12px/1 system-ui,sans-serif;vertical-align:middle;cursor:pointer}.mc-explain-button:hover{border-color:#0f766e}.mc-explain-button:focus-visible{border-color:#0f766e;outline:3px solid #0f766e;outline-offset:2px}',
       '.mc-guide-highlight{position:relative!important;z-index:2147483003!important;outline:4px solid #27b5a5!important;outline-offset:5px!important;border-radius:6px!important;background-color:#fff!important}',
-      '.mc-tour-dim{position:fixed;inset:0;z-index:2147483002;background:rgba(4,18,29,.58)}.mc-tour-card{position:fixed;z-index:2147483004;width:min(360px,calc(100vw - 24px));padding:18px;border-radius:10px;background:#fff;color:#173042;box-shadow:0 18px 50px rgba(0,0,0,.25);font:500 13px/1.45 system-ui,sans-serif}.mc-tour-card strong{display:block;margin-bottom:5px;color:#082b3d;font-size:16px}.mc-tour-count{color:#0f766e;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mc-tour-controls{display:flex;justify-content:space-between;gap:8px;margin-top:15px}.mc-tour-controls button{min-height:42px;padding:8px 12px;border:1px solid #9fb1c1;border-radius:7px;background:#fff;color:#123548;font-weight:750;cursor:pointer}.mc-tour-controls button:last-child{border-color:#0f766e;background:#0f766e;color:#fff}',
+      '.mc-tour-dim{position:fixed;inset:0;z-index:2147483002;background:rgba(4,18,29,.58)}.mc-tour-card{position:fixed;z-index:2147483004;width:min(360px,calc(100vw - 24px));padding:18px;border-radius:10px;background:#fff;color:#173042;box-shadow:0 18px 50px rgba(0,0,0,.25);font:500 13px/1.45 system-ui,sans-serif}.mc-tour-card strong{display:block;margin-bottom:5px;color:#082b3d;font-size:16px}.mc-tour-count{color:#0f766e;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.mc-tour-controls{display:flex;justify-content:space-between;gap:8px;margin-top:15px}.mc-tour-controls button{min-height:44px;padding:8px 14px;border:1px solid #9fb1c1;border-radius:7px;background:#fff;color:#123548;font-weight:750;cursor:pointer}.mc-tour-controls button:last-child{border-color:#0f766e;background:#0f766e;color:#fff}',
       '@media(max-width:680px){.mc-guide-banner{align-items:flex-start;flex-direction:column}.mc-guide-banner-actions{width:100%}.mc-guide-banner-actions button{flex:1}.mc-guide-drawer-head,.mc-guide-body{padding-left:18px;padding-right:18px}.mc-guide-actions{grid-template-columns:1fr}.mc-explain-button{width:36px;height:36px}.mc-tour-card{left:12px!important;right:12px!important;bottom:12px!important;top:auto!important;width:auto}}',
       '@media(prefers-reduced-motion:no-preference){.mc-guide-drawer{animation:mcGuideIn .18s ease-out}@keyframes mcGuideIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}}'
     ].join('');
@@ -351,7 +359,8 @@
 
   function insertFirstVisitBanner() {
     state.seen = state.seen || {};
-    if (state.seen[PAGE_KEY]) return;
+    // «Ahora no» on any screen silences the first-visit banner for the rest of the session; the header help stays.
+    if (state.seen[PAGE_KEY] || state.bannersMuted) return;
     var main = document.querySelector('main');
     if (!main) return;
     var banner = document.createElement('section');
@@ -365,6 +374,7 @@
       startTour();
     });
     banner.querySelector('[data-mc-dismiss]').addEventListener('click', function () {
+      state.bannersMuted = true;
       acknowledgePage();
       banner.remove();
     });
@@ -516,6 +526,8 @@
     var step = tour.steps[tourIndex];
     var target = document.querySelector(step[0]);
     if (!target) return nextTour();
+    // En pantallas con pestañas, el paso trae al frente la pestaña donde está el bloque (sin cambiar la recordada).
+    if (typeof window.mcSectionTabsShow === 'function') window.mcSectionTabsShow(target);
     activeTarget = target;
     target.classList.add('mc-guide-highlight');
     target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });

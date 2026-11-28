@@ -32,7 +32,7 @@ try{
   if(published){const response=await route.fetch();assert.equal(response.status(),200,rel);const bytes=await response.body();assert.equal(sha(bytes),sha(expected),'Published bytes: '+rel);assets.set(rel,sha(bytes));return route.fulfill({response,body:bytes});}
   assets.set(rel,sha(expected));return route.fulfill({body:expected,contentType:mime[path.extname(file)]||'application/octet-stream'});
  });
- const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));await page.goto(origin+'/estructura');
+await context.addInitScript(()=>{try{localStorage.setItem('mc.estructura.tab','explorar')}catch{}});/* la pantalla tiene pestañas: esta verificación trabaja en «explorar» */ const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));await page.goto(origin+'/estructura');
  const open=page.locator('#organizationRows [data-sp-open]');await open.waitFor();assert.equal(requests.length,0);assert.equal(assets.has('assets/structure-people.js'),false);
  await page.locator('#searchInput').fill('Administración');await open.click();const dialog=page.locator('#structurePeopleDialog');await dialog.locator('[data-sp-rows] tr').first().waitFor();
  assert.equal(await dialog.locator('[data-sp-rows] tr').count(),25);assert.match(await dialog.getByRole('status').innerText(),/31 legajos/);

@@ -48,8 +48,8 @@ export function mountPayrollComparison(host) {
       <p data-pc-empty class="rc-empty" hidden>Sin resultados para estos filtros. No se exportarán códigos ocultos.</p>
       <div class="rc-table-wrap pc-table-wrap" tabindex="0" role="region" aria-label="Comparación por concepto; desplazamiento horizontal disponible">
         <table class="rc-table pc-table"><caption>Importes agregados por concepto en las dos liquidaciones</caption><thead><tr>
-          <th scope="col">Código / concepto</th><th scope="col">Base</th><th scope="col">Comparada</th>
-          <th scope="col">Diferencia</th><th scope="col">Variación %</th><th scope="col">Estado</th>
+          <th scope="col">Código / concepto</th><th scope="col" class="num">Base</th><th scope="col" class="num">Comparada</th>
+          <th scope="col" class="num">Diferencia</th><th scope="col" class="num">Variación %</th><th scope="col">Estado</th>
         </tr></thead><tbody data-pc-rows></tbody></table></div>
       <details class="pc-trace"><summary>Fuentes y alcance de la comparación</summary><dl data-pc-trace></dl></details>
     </div>`;
@@ -147,18 +147,21 @@ export function mountPayrollComparison(host) {
     $('[data-pc-review]').textContent = view.review;
     $('[data-pc-empty]').hidden = view.count !== 0;
     const rows = view.rows.map(row => {
-      const tr = node('tr'); tr.dataset.pcCode = row.code;
-      const name = node('th'); name.scope = 'row'; name.append(node('strong', row.code), node('span', row.description));
+      const tr = node('tr'); tr.dataset.pcCode = row.code; tr.dataset.pcRowReview = String(row.review); tr.dataset.pcRowStatus = row.status;
+      const name = node('th'); name.scope = 'row'; name.dataset.label = 'Código / concepto'; name.append(node('strong', row.code), node('span', row.description));
       if (row.totalizer) name.append(node('small', 'Totalizador de origen', 'pc-tag'));
       tr.append(name);
       for (const side of ['base', 'target']) {
-        const td = node('td', row[side + 'Present'] ? comparisonMoney(row[side + 'Amount']) : 'No figura', 'pc-money');
-        td.append(node('small', row[side + 'Present'] ? row[side + 'Count'] + ' legajos con concepto' : 'No se presume cero'));
+        const present = row[side + 'Present'];
+        const td = node('td', present ? comparisonMoney(row[side + 'Amount']) : 'No figura', present ? 'pc-money num' : 'pc-money num muted');
+        td.dataset.label = side === 'base' ? 'Base' : 'Comparada';
+        td.append(node('small', present ? row[side + 'Count'] + ' legajos con concepto' : 'No se presume cero'));
         tr.append(td);
       }
-      tr.append(node('td', row.delta === null ? 'No evaluable' : comparisonMoney(row.delta), 'pc-money'));
-      tr.append(node('td', row.percent));
-      const state = node('td'); const badge = node('span', row.state, 'pc-tag'); badge.dataset.review = String(row.review); state.append(badge); tr.append(state);
+      const deltaTd = node('td', row.delta === null ? 'No evaluable' : comparisonMoney(row.delta), row.delta === null ? 'pc-money num muted' : 'pc-money num');
+      deltaTd.dataset.label = 'Diferencia'; tr.append(deltaTd);
+      const pctTd = node('td', row.percent, 'num'); pctTd.dataset.label = 'Variación %'; tr.append(pctTd);
+      const state = node('td'); state.dataset.label = 'Estado'; const badge = node('span', row.state, 'pc-tag'); badge.dataset.review = String(row.review); badge.dataset.status = row.status; state.append(badge); tr.append(state);
       return tr;
     });
     $('[data-pc-rows]').replaceChildren(...rows);

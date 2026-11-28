@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "code": "NATIVE_EMPLOYMENT_VOID_IN_USE",
+  "error": "El legajo tiene movimientos propios que deben revisarse antes de corregir el alta."
+}

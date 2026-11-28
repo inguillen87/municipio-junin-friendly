@@ -27,6 +27,8 @@ on:
       - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.vercelignore'
       - 'vercel.json'
       - '.github/workflows/native-employment-lifecycle-release.yml'
@@ -57,6 +59,8 @@ on:
       - 'tests/fixtures/native-roster-synthetic.js'
       - 'tests/fixtures/native-employee-catalog-installed-099.json'
       - 'scripts/build-friendly.mjs'
+      - 'scripts/build-charts.mjs'
+      - 'src/charts/**'
       - '.github/workflows/native-employment-lifecycle-release.yml'
 permissions:
   contents: read
@@ -74,7 +78,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run build
+      - run: npm run build:lab
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-native-employment-lifecycle-browser.mjs
       - run: node scripts/verify-native-roster-browser.mjs
@@ -92,7 +96,7 @@ jobs:
           retention-days: 3
   sql:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

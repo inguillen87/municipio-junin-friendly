@@ -20,6 +20,7 @@ export function createEmploymentAdoptionHandler(deps={}){
     if(Object.keys(q).length)adoptionFail('QUERY_INVALID',400,'La operación no admite filtros o parámetros.');schoolCertificateHttp.assertOrigin(req,env);
     if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')adoptionFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,ADOPTION_PREPARATION_MAX_BYTES);
    }else if(q.resource==='bootstrap'&&Object.keys(q).length===1)operation='bootstrap';
+   else if(q.resource==='prepared-sources'&&Object.keys(q).length===1)operation='prepared-sources';
    else if(q.resource==='final-sources'&&Object.keys(q).length===1)operation='final-sources';
    else if(q.resource==='mixed-sources'&&Object.keys(q).length===1)operation='mixed-sources';
    else if(['final-bootstrap','final-active-bootstrap','registry-bootstrap','operational-bootstrap','mixed-bootstrap'].includes(q.resource)&&Object.keys(q).sort().join('|')==='packageSha256|resource|revisionId'){operation=q.resource;input={revisionId:q.revisionId,packageSha256:q.packageSha256};}

@@ -29,7 +29,7 @@ function message(e) {
 export function mountMonthlySummary(host) {
   if (!host || host.dataset.monthlyMounted) return;
   host.dataset.monthlyMounted = 'true'; host.classList.add('monthly-summary');
-  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">FUENTE PROPIA · CONTROL INTERNO</p><h2>Resumen mensual</h2><p>Elegí el período de imputación y las liquidaciones que querés reunir. Consultá conceptos, cantidades e importes sin preparar archivos de entrada.</p></header>
+  host.innerHTML = `<header class="rc-panel-head"><p class="rc-eyebrow">Fuente propia · control interno</p><h2>Resumen mensual</h2><p>Elegí el período de imputación y las liquidaciones que querés reunir. Consultá conceptos, cantidades e importes sin preparar archivos de entrada.</p></header>
     <p class="ms-note">El resumen reúne sólo las liquidaciones que selecciones. No certifica que estén todas las del mes, ni constituye un cierre o un pago.</p>
     <div class="rc-filter"><label>Acotar liquidaciones a un período (opcional)<input type="month" min="1900-01" max="2100-12" data-ms-catalog-period></label><button type="button" class="rc-button" data-ms-catalog>Consultar liquidaciones disponibles</button></div>
     <p role="status" aria-live="polite" class="ms-status" data-ms-status>Consultá las fuentes disponibles para empezar.</p>
@@ -112,8 +112,9 @@ export function mountMonthlySummary(host) {
     try { const next = await read('catalog', job, period); if (!valid(job)) return; catalog = next;
       const blank = node('option', 'Elegí un período'); blank.value = '';
       $('[data-ms-period]').replaceChildren(blank, ...[...new Set(next.items.map(sourceMonthlyPeriod))].sort().reverse().map(p => { const o = node('option', p); o.value = p; return o; }));
+      const latest = $('[data-ms-period]').options[1]?.value; if (latest) $('[data-ms-period]').value = latest;
       $('[data-ms-selection]').hidden = false; sources();
-      status.textContent = next.total ? next.total + ' liquidaciones disponibles. Elegí período y liquidaciones; no se selecciona ninguna automáticamente.' : 'No hay liquidaciones incorporadas disponibles para tu ámbito.';
+      status.textContent = next.total ? next.total + ' liquidaciones disponibles' + (latest ? ' · período ' + latest + ' preseleccionado' : '') + '. Marcá las liquidaciones a reunir (ninguna se marca sola).' : 'No hay liquidaciones incorporadas disponibles para tu ámbito.';
     } catch (e) { if (valid(job)) failure(e); } finally { if (job.seq === generation) { busy = false; controls(); } }
   }
   function render() {

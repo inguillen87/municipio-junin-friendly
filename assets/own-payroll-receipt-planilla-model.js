@@ -1,3 +1,4 @@
+import {salarySerialized} from './native-salary-catalog-model.js';
 import {ownReceiptBatch,ownReceiptVerifyHash} from './own-payroll-receipt-model.js';
 import {verifiedOwnCloseReceipt,OWN_CLOSE_TOTAL_KEYS} from './own-payroll-close-model.js';
 import {ownClosedJurisdiction} from './own-payroll-jurisdiction-model.js';
@@ -25,11 +26,16 @@ export async function prepareOwnPlanilla(batchValue,closeValues,jurisdiction='al
  }
  const records=snapshot.records.map(r=>{const source=closes.get(r.sourceGroupId.toLowerCase()),employee=source?.employees.get(r.contractId.toLowerCase()),original=source?.concepts.get(r.contractId.toLowerCase());
   need(employee&&['employeeNumber','runId','liquidationVersion','agreementCode','departmentCode','precision'].every(k=>employee[k]===r[k])&&OWN_CLOSE_TOTAL_KEYS.every(k=>employee.totals[k]===r.totals[k]),'Un recibo no coincide con su participación cerrada.');
+  const economic=r.economicConcepts??r.concepts;
+  if(r.economicConcepts){
+   const same=(a,b)=>salarySerialized(a)===salarySerialized(b),{contractId:ignored,...closedLineTotals}=employee.lineTotals??{};
+   need(same(closedLineTotals,r.lineTotals)&&same(employee.totalReconciliation,r.totalReconciliation)&&same(employee.receiptRowKeys,r.receiptRowKeys)&&same(employee.rowEmissions,r.rowEmissions)&&r.inputSha256===employee.inputSha256&&r.resultSha256===employee.resultSha256,'La conciliación o el selector de impresión difieren del cierre original.');
+  }
   const conceptKey=(code,nature,unit,amount)=>JSON.stringify([code,nature,unit,amount]),keys=new Set((original??[]).map(o=>conceptKey(o.conceptCode,o.nature,o.unit,o.amount)));
-  need((original??[]).length===r.concepts.length&&r.concepts.every(c=>keys.delete(conceptKey(c.code,c.nature,c.unit,c.amount)))&&keys.size===0,'El detalle de conceptos difiere del cierre original; no se sustituyó por un total.');
+  need((original??[]).length===economic.length&&economic.every(c=>keys.delete(conceptKey(c.code,c.nature,c.unit,c.amount)))&&keys.size===0,'El detalle de conceptos difiere del cierre original; no se sustituyó por un total.');
   const j=ownClosedJurisdiction(employee,source.close.snapshot.version);
   need(['captured_own_registration','captured_own_period_classification'].includes(j.basis)&&j.code!==null,'La emisión contiene una jurisdicción no conservada o sin informar. No se puede asegurar una planilla completa J42/J55; no se omitieron esas filas.');
-  return {sourceGroupId:r.sourceGroupId,contractId:r.contractId,period:source.close.snapshot.period,type:source.close.snapshot.liquidationType,jurisdiction:j.code,employeeNumber:r.employeeNumber,dni:r.dni,name:r.name,agreementCode:r.agreementCode,departmentCode:r.departmentCode,liquidationVersion:r.liquidationVersion,precision:r.precision,totals:{...r.totals},concepts:r.concepts.map(c=>({...c}))};
+  return {sourceGroupId:r.sourceGroupId,contractId:r.contractId,period:source.close.snapshot.period,type:source.close.snapshot.liquidationType,jurisdiction:j.code,employeeNumber:r.employeeNumber,dni:r.dni,name:r.name,agreementCode:r.agreementCode,departmentCode:r.departmentCode,liquidationVersion:r.liquidationVersion,precision:r.precision,totals:{...r.totals},concepts:r.concepts.map(c=>({...c})),...(r.economicConcepts?{economicConcepts:structuredClone(r.economicConcepts),lineTotals:structuredClone(r.lineTotals),totalReconciliation:structuredClone(r.totalReconciliation),omissionAudit:structuredClone(r.omissionAudit),receiptRowKeys:[...r.receiptRowKeys],economicConceptCount:r.economicConceptCount,omittedRowCount:r.omittedRowCount}:{})};
  }).sort((a,b)=>compare(a.period,b.period)||compare(a.type,b.type)||compare(a.jurisdiction,b.jurisdiction)||numeric(a.agreementCode,b.agreementCode)||numeric(a.departmentCode,b.departmentCode)||numeric(a.dni,b.dni)||compare(a.employeeNumber,b.employeeNumber)||compare(a.contractId,b.contractId));
  const selected=records.filter(r=>jurisdiction==='all'||r.jurisdiction===jurisdiction),groups=[];
  for(const r of selected){const key=JSON.stringify([r.period,r.type,r.jurisdiction,r.agreementCode,r.departmentCode]);let group=groups.at(-1);if(group?.key!==key){group={key,period:r.period,type:r.type,jurisdiction:r.jurisdiction,agreementCode:r.agreementCode,departmentCode:r.departmentCode,records:[]};groups.push(group);}group.records.push(r);}

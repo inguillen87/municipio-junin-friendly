@@ -19,25 +19,36 @@ test('nuevas reglas conservan todas las etapas sin modificar el contenido',()=>{
  const p=exactProgram(),saved=structuredClone(p);assert.equal(requireExactProgramChanges(null,p),p);assert.deepEqual(p,saved);
  const body=prepareProgramWorkspace(bootstrap(),p,'Reglas sintéticas exactas y completas');assert.deepEqual(body.program,p);
 });
-for(const mode of ['half_up','half_even','toward_zero','floor','ceiling'])test(`rechaza criterio nuevo ${mode} sin cambiar la carga`,()=>{
+for(const mode of ['half_even','toward_zero','floor','ceiling'])test(`rechaza criterio nuevo ${mode} sin cambiar la carga`,()=>{
  const p=exactProgram();p.rules[0].rounding.mode=mode;const saved=structuredClone(p);
  assert.throws(()=>prepareProgramWorkspace(bootstrap(),p,'Reglas sintéticas completas'),e=>e.code==='PROGRAM_PRECISION_REQUIRED');assert.deepEqual(p,saved);
+});
+test('política municipal de redondeo: half_up a 2 decimales se admite; half_up con otra precisión no',()=>{
+ const p=exactProgram();p.rules[0].rounding={precision:2,mode:'half_up'};const saved=structuredClone(p);
+ assert.doesNotThrow(()=>requireExactProgramChanges(null,ownProgramStructure(p)));assert.deepEqual(p,saved);
+ for(const precision of [0,1,3,8]){p.rules[0].rounding={precision,mode:'half_up'};assert.throws(()=>requireExactProgramChanges(null,ownProgramStructure(p)),e=>e.code==='PROGRAM_PRECISION_REQUIRED');}
 });
 test('revisa ramas condicionales y etapas profundas, aunque nunca se elijan al calcular',()=>{
  const p=exactProgram(),leaf={op:'literal',value:'1.00',unit:'money'};
  p.rules[0].expression={op:'choose',condition:{op:'compare',operator:'eq',left:leaf,right:leaf},then:leaf,else:{op:'round',rounding:{mode:'half_even',precision:2},value:leaf}};
- assert.throws(()=>requireExactProgramChanges(null,ownProgramStructure(p)),/resultado exacto/);
+ assert.throws(()=>requireExactProgramChanges(null,ownProgramStructure(p)),/redondeo municipal/);
  p.rules[0].expression.else.rounding.mode='exact';assert.doesNotThrow(()=>requireExactProgramChanges(null,ownProgramStructure(p)));
+ p.rules[0].expression.else.rounding={mode:'half_up',precision:2};assert.doesNotThrow(()=>requireExactProgramChanges(null,ownProgramStructure(p)));
+ p.rules[0].expression.else.rounding={mode:'half_up',precision:4};assert.throws(()=>requireExactProgramChanges(null,ownProgramStructure(p)),e=>e.code==='PROGRAM_PRECISION_REQUIRED');
 });
-test('no permite referencias nuevas al resultado cuantizado de otro concepto',()=>{
+test('las referencias al resultado redondeado de otro concepto se admiten (GRH encadena importes redondeados)',()=>{
  const p=exactProgram();p.rules.find(r=>r.code==='110').expression.left.stage='rounded';
- assert.throws(()=>requireExactProgramChanges(null,p),e=>e.code==='PROGRAM_PRECISION_REQUIRED');
+ assert.doesNotThrow(()=>requireExactProgramChanges(null,p));
 });
-test('historia idéntica y cierre conservan su criterio; extenderlo o copiarlo exige exactitud',()=>{
+test('historia idéntica y cierre conservan su criterio; extender o copiar una regla fuera de la política exige adecuarla',()=>{
  const before=program(),after=structuredClone(before);assert.doesNotThrow(()=>requireExactProgramChanges(before,after));
  after.rules.forEach(r=>r.validUntil='2026-12');assert.doesNotThrow(()=>requireExactProgramChanges(before,after));
- const closed=structuredClone(after);after.rules[0].validUntil=null;assert.throws(()=>requireExactProgramChanges(closed,after));
- after.rules[0].validUntil='2026-12';after.rules.push({...structuredClone(after.rules[0]),agreementCode:'2'});assert.throws(()=>requireExactProgramChanges(before,after));
+ const i=after.rules.findIndex(r=>r.rounding.mode==='half_even');assert.ok(i>=0,'el programa sintético conserva una regla histórica fuera de la política');
+ const closed=structuredClone(after);after.rules[i].validUntil=null;assert.throws(()=>requireExactProgramChanges(closed,after),e=>e.code==='PROGRAM_PRECISION_REQUIRED');
+ after.rules[i].validUntil='2026-12';after.rules.push({...structuredClone(after.rules[i]),agreementCode:'2'});assert.throws(()=>requireExactProgramChanges(before,after),e=>e.code==='PROGRAM_PRECISION_REQUIRED');
+ // A copied rule inside the municipal policy (half_up to cents) is accepted.
+ after.rules.pop();const j=after.rules.findIndex(r=>r.rounding.mode==='half_up'&&r.rounding.precision===2);assert.ok(j>=0);
+ after.rules.push({...structuredClone(after.rules[j]),agreementCode:'2'});assert.doesNotThrow(()=>requireExactProgramChanges(before,after));
 });
 test('clave y cuerpo históricos de un intento no se convierten a otra política',()=>{
  const body=command(),saved=structuredClone(body),attempt=programWorkspaceAttempt(uid(77),body,'Cuenta QA');

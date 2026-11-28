@@ -138,7 +138,14 @@ export function createInternalFamilyCertificatesHandler(dependencies = {}) {
         res.setHeader('Content-Length', String(result.bytes.length));
         return res.status(200).end(result.bytes);
       }
-      const data = await readSchoolCertificates(sql, access.principal, session, q.contractId ?? null, { version });
+      const readOptions = { version };
+      if (version === 5) {
+        const configured = env.SCHOOL_CERTIFICATE_READ_IMPLEMENTATION;
+        const implementation = configured === undefined ? 'v5' : configured;
+        if (!['v5', 'v6'].includes(implementation)) schoolCertificateFail('SERVICE_UNAVAILABLE');
+        readOptions.implementation = implementation;
+      }
+      const data = await readSchoolCertificates(sql, access.principal, session, q.contractId ?? null, readOptions);
       data.canRegister = data.canRegister && capability(access.principal, SCHOOL_CERTIFICATE_WRITE_CAPABILITY);
       return res.status(200).json({ ok: true, data });
     } catch (error) {

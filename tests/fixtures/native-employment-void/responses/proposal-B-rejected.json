@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "data": {
+    "version": "native-employment-void.v1",
+    "scopeVersion": "8199550bf737ad84388778d675947910e7bf1b72b9ca31b6c69689f909ede87c",
+    "proposal": {
+      "id": "f1000000-0000-4000-8000-000000000202",
+      "contractId": "f1000000-0000-4000-8000-000000000002",
+      "status": "rejected",
+      "reason": "Incorporación histórica sintética sin relación vigente, para prueba de interfaz.",
+      "createdAt": "2026-11-09T20:00:00Z",
+      "authorLabel": "Preparador sintético QA",
+      "proposalVersion": "8bdb2b103e6549d83a1c57ad08ac55991dde410df6c2d09d60bd83b0df653349",
+      "canReview": false,
+      "baseVersion": "8d0a892dd653092095ca757d0ce79f448fecd104670b66b6213551b5b4a943a9",
+      "pendingOperations": [
+        {
+          "kind": "lifecycle",
+          "id": "f1000000-0000-4000-8000-000000000403",
+          "version": "d2088ac34202ce5126fbb529f783b948fa82b801c849a02800bfc3e82aa202ab"
+        }
+      ],
+      "before": {
+        "status": "active",
+        "startDate": "2000-01-01",
+        "endDate": null
+      },
+      "after": {
+        "status": "inactive",
+        "startDate": "2000-01-01",
+        "endDate": null
+      },
+      "review": {
+        "id": "f1000000-0000-4000-8000-000000000302",
+        "decision": "reject",
+        "reason": "Revisión independiente sintética: hace falta respaldo antes de corregir el alta.",
+        "reviewerLabel": "Revisor sintético QA",
+        "reviewedAt": "2026-11-09T20:05:00Z",
+        "version": "ca3a87ee85d0aec921cabdd5b159f36a603c835140068362401100f132ac5846"
+      }
+    }
+  }
+}

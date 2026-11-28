@@ -1,0 +1,296 @@
+const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
+export const profiles=freeze({
+  "general": {
+    "sheet": "AGOSTO 2026- GENERAL",
+    "period": "2026-08",
+    "dimension": "A1:O61",
+    "body": [
+      6,
+      36
+    ],
+    "total": 37,
+    "controls": [
+      38,
+      39
+    ],
+    "notes": [
+      40
+    ],
+    "headers": {
+      "A1": "CAJAS ASISTENCIALES",
+      "A3": "CUENTA CONTABLE",
+      "B3": "CODIGOS",
+      "C3": "CONCEPTO",
+      "A2": "AGOSTO 2.026",
+      "D3": "LIQUIDACION",
+      "I3": "CHEQUES",
+      "L3": "RETENIDO EN LA COOPARTICIPACION",
+      "D4": "JUR. 42",
+      "E4": "SUPLEMENTARIAS- BONO",
+      "G4": "JUR. 55",
+      "H4": "TOTAL",
+      "E5": "JUR. 42",
+      "F5": "JUR. 55",
+      "I5": "IMPORTE A RETENER POR EL PROCESAM.",
+      "J5": "TOTAL A DEPOSITAR",
+      "K5": "BANCO",
+      "A37": "TOTALES"
+    },
+    "formulaHeaders": [],
+    "amountColumns": {
+      "D": "42",
+      "E": "42",
+      "F": "55",
+      "G": "55",
+      "H": "all",
+      "I": "all",
+      "J": "all",
+      "L": "all"
+    },
+    "bankColumn": "K",
+    "concepts": {
+      "6": "Jubilacion",
+      "7": "Seguro Mutual",
+      "8": "Ret. OSEP",
+      "9": "La Caja",
+      "10": "I.P.V.",
+      "11": "Embargos",
+      "13": "Gremios",
+      "14": "Partidos Politicos",
+      "15": "Mutuales",
+      "23": "Compañias de Seguros",
+      "28": "Contribuciones OSEP",
+      "29": "Contribuciones Jubilación",
+      "30": "Ganancias",
+      "31": "Reintegro Municipal",
+      "32": "Anticipo de Haberes",
+      "33": "Tasas Municiplaes",
+      "34": "Ingresos",
+      "35": "Suspención",
+      "36": "Aportes MTEySS"
+    },
+    "merges": [
+      "K6:K8",
+      "A37:C37",
+      "A3:A5",
+      "B3:B5",
+      "C3:C5",
+      "K28:K29",
+      "D4:D5",
+      "E4:F4",
+      "G4:G5",
+      "H4:H5",
+      "A11:A12",
+      "B11:B12",
+      "C11:C12",
+      "D11:D12",
+      "I11:I12",
+      "G11:G12",
+      "A1:L1",
+      "D3:H3",
+      "A2:L2",
+      "L3:L5",
+      "I3:K3"
+    ],
+    "formulas": {
+      "D": "6-8,11,13,15,17,23,37-39",
+      "E": "8,28,37-39",
+      "F": "37",
+      "G": "6-8,15,23,37-39",
+      "H": "6-11,13-39",
+      "I": "9,13-25,27,37-39",
+      "J": "9-27,30,37",
+      "L": "6-8,28-29,34-37"
+    }
+  },
+  "jur42": {
+    "sheet": "AGOSTO 2026- JUR.42",
+    "period": "2026-08",
+    "dimension": "A1:K44",
+    "body": [
+      6,
+      36
+    ],
+    "total": 37,
+    "controls": [
+      38,
+      40,
+      41,
+      42
+    ],
+    "notes": [],
+    "headers": {
+      "A1": "CAJAS ASISTENCIALES",
+      "A3": "CUENTA CONTABLE",
+      "B3": "CODIGOS",
+      "C3": "CONCEPTO",
+      "D3": "LIQUIDACION",
+      "G3": "CHEQUES",
+      "K3": "RETENIDO EN LA COOPARTICIPACION",
+      "D4": "JUR. 42",
+      "F4": "TOTAL",
+      "E5": "JUR. 42",
+      "G5": "IMPORTE A RETENER POR EL PROCESAM.",
+      "H5": "A DEVOLVER",
+      "I5": "TOTAL A DEPOSITAR",
+      "J5": "BANCO",
+      "A37": "TOTALES",
+      "A38": "CONTROL DE DEBITOS"
+    },
+    "formulaHeaders": [
+      "A2",
+      "E4"
+    ],
+    "amountColumns": {
+      "D": "42",
+      "E": "42",
+      "F": "42",
+      "G": "42",
+      "H": "42",
+      "I": "42",
+      "K": "42"
+    },
+    "bankColumn": "J",
+    "concepts": {
+      "6": "Jubilacion",
+      "7": "Seguro Mutual",
+      "8": "Ret. OSEP",
+      "9": "La Caja",
+      "10": "I.P.V.",
+      "11": "Embargos",
+      "13": "Gremios",
+      "14": "Partidos Politicos",
+      "15": "Mutuales",
+      "23": "Compañias de Seguros",
+      "28": "Contribuciones OSEP",
+      "29": "Contribuciones Jubilación",
+      "30": "Ganancias",
+      "31": null,
+      "32": null,
+      "33": "Ingresos",
+      "34": "Tasas Municiplaes",
+      "35": "Suspención",
+      "36": "Aportes MTEyss"
+    },
+    "merges": [
+      "A38:H38",
+      "G11:G12",
+      "F4:F5",
+      "J6:J8",
+      "J28:J29",
+      "A37:C37",
+      "A11:A12",
+      "B11:B12",
+      "C11:C12",
+      "D11:D12",
+      "A1:K1",
+      "A2:K2",
+      "A3:A5",
+      "B3:B5",
+      "C3:C5",
+      "D3:F3",
+      "G3:J3",
+      "K3:K5",
+      "D4:D5"
+    ],
+    "formulas": {
+      "A": "2,6-11,13-15,31-32,40",
+      "B": "8,14,18,31-32",
+      "C": "31-32,41-42",
+      "D": "6-11,13-37",
+      "E": "4,6,8,10,28-29,37",
+      "F": "6-37",
+      "G": "9,13-27,37",
+      "H": "37",
+      "I": "9-27,30,37-38",
+      "J": "34",
+      "K": "6-7,28-29,32-33,36-37"
+    }
+  },
+  "jur55": {
+    "sheet": "AGOSTO 2026- JUR.55",
+    "period": "2026-08",
+    "dimension": "A1:L53",
+    "body": [
+      6,
+      30
+    ],
+    "total": 31,
+    "controls": [
+      32,
+      34,
+      36,
+      37
+    ],
+    "notes": [],
+    "headers": {
+      "A1": "CAJAS ASISTENCIALES",
+      "A3": "CUENTA CONTABLE",
+      "B3": "CODIGOS",
+      "C3": "CONCEPTO",
+      "I3": "RETENIDO EN LA COOPARTICIPACION",
+      "D4": "JUR. 55",
+      "E4": "SUPLEMENTARIAS",
+      "F4": "SALDOA FAVOR",
+      "G4": "TOTAL A DEPOSITAR",
+      "E5": "JUR. 55",
+      "H5": "BANCO",
+      "A31": "TOTALES",
+      "A32": "CONTROL DE DEBITOS",
+      "D34": "CONTROL CERO"
+    },
+    "formulaHeaders": [
+      "A2"
+    ],
+    "amountColumns": {
+      "D": "55",
+      "E": "55",
+      "F": "55",
+      "G": "55",
+      "I": "55"
+    },
+    "bankColumn": "H",
+    "concepts": {
+      "6": "Jubilacion",
+      "7": "Seguro Mutual",
+      "8": "Ret. OSEP",
+      "9": "La Caja",
+      "10": "I.P.V.",
+      "11": "Embargos",
+      "13": "Mutuales",
+      "21": "Compañias de Seguros",
+      "26": "Contribuciones OSEP",
+      "27": "Contribuciones Jubilación",
+      "28": "Ganancias",
+      "29": "Ingresos",
+      "30": "Suspención"
+    },
+    "merges": [
+      "A31:C31",
+      "G11:G12",
+      "A32:C32",
+      "D4:D5",
+      "A11:A12",
+      "B11:B12",
+      "C11:C12",
+      "D11:D12",
+      "G4:G5",
+      "H11:H12",
+      "A1:I1",
+      "A2:I2",
+      "A3:A5",
+      "B3:B5",
+      "C3:C5",
+      "G3:H3",
+      "I3:I5",
+      "F4:F5"
+    ],
+    "formulas": {
+      "A": "2",
+      "D": "6-9,11,13,16-17,20-22,26-27,31,36-37",
+      "E": "31",
+      "G": "7-9,11,13-26,31-32,34",
+      "I": "6,27,29,31"
+    }
+  }
+});

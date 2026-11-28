@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from 'playwright';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public'); // built output: it carries generated bundles such as assets/mc-charts.js
 const outputRoot = path.join(os.tmpdir(), 'municontrol-f931-report-browser');
 const mimeTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -62,13 +62,14 @@ async function inspect(viewport, label, mode) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   const issues = [];
-  page.on('console', (message) => { if (message.type() === 'error') issues.push(`console: ${message.text()}`); });
+  // This static harness has no session API: the shell's own /api/internal-auth probe answers 404 here and is not an F.931 error.
+  page.on('console', (message) => { if (message.type() === 'error' && !/status of 404/.test(message.text())) issues.push(`console: ${message.text()}`); });
   page.on('pageerror', (error) => issues.push(`pageerror: ${error.message}`));
   page.on('requestfailed', (request) => issues.push(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
-  page.on('response', (response) => { if (response.status() >= 400) issues.push(`HTTP ${response.status()} ${response.url()}`); });
+  page.on('response', (response) => { if (response.status() >= 400 && !(response.status() === 404 && new URL(response.url()).pathname === '/api/internal-auth')) issues.push(`HTTP ${response.status()} ${response.url()}`); });
 
   try {
-    await page.goto(`${baseUrl}/reportes-rrhh.html`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${baseUrl}/reportes-rrhh.html#f931`, { waitUntil: 'domcontentloaded' }); // F.931 lives in its own report task since the index by areas
     await page.waitForSelector('#reportContent:not([hidden])');
     await page.waitForFunction(() => document.querySelectorAll('[data-f931-requirements] li').length === 11);
     assert.equal(await page.locator('[data-f931-generate]').isDisabled(), true);

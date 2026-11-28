@@ -1,4 +1,5 @@
 import {NOVELTY_INPUT_FORMATS,TXT_LAYOUTS,noveltyInputTemplate} from './payroll-novelty-txt.js';
+import {attachConceptHelp} from './code-name-help.js';
 /** Settings are volatile and explicit. Unknown DNI-based files are not treated as legajo files. */
 export function mountNoveltyTxtOptions(host,onChange){
  host.innerHTML=`<div class="form-grid">
@@ -35,5 +36,5 @@ export function mountNoveltyTxtOptions(host,onChange){
  }
  host.addEventListener('input',()=>render());host.addEventListener('change',event=>{render();onChange?.({encodingChanged:event.target.id==='bulkEncoding'});});
  get('bulkTemplate').onclick=()=>{const o=options(),text=noveltyInputTemplate(o.format,o),url=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/plain;charset=utf-8'})),a=host.ownerDocument.createElement('a');a.href=url;a.download='plantilla_novedades_'+o.format+(o.format==='csv'?'.csv':'.txt');host.ownerDocument.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);};
- render();return{options,reset(){get('bulkFormat').value='csv';get('bulkEncoding').value='utf-8';get('bulkLayout').value='both';get('bulkSeparator').value='semicolon';get('bulkHasHeader').checked=false;get('bulkCommonConcept').value='';for(const [id,value]of Object.entries({bulkRecordWidth:18,bulkIdStart:1,bulkIdLength:8,bulkValueStart:9,bulkValueLength:10,bulkScale:2}))get(id).value=String(value);get('bulkValueKind').value='amount';get('bulkDecimal').value='point';render();}};
+ attachConceptHelp(get('bulkCommonConcept'));render();return{options,reset(){get('bulkFormat').value='csv';get('bulkEncoding').value='utf-8';get('bulkLayout').value='both';get('bulkSeparator').value='semicolon';get('bulkHasHeader').checked=false;get('bulkCommonConcept').value='';for(const [id,value]of Object.entries({bulkRecordWidth:18,bulkIdStart:1,bulkIdLength:8,bulkValueStart:9,bulkValueLength:10,bulkScale:2}))get(id).value=String(value);get('bulkValueKind').value='amount';get('bulkDecimal').value='point';render();}};
 }

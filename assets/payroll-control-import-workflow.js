@@ -179,11 +179,22 @@ export function createPayrollControlImportWorkflow(root, options = {}) {
   }
 
   async function api(url, init) {
-    const response = await fetchImpl(url, {
-      credentials: 'same-origin',
-      ...init,
-      headers: { Accept: 'application/json', ...(init?.headers || {}) },
-    });
+    // Reads only: while the access is being refreshed the server answers 409 SESSION_BUSY with Retry-After.
+    // Retry a GET a few times before showing an error; commands are never repeated here.
+    const isRead = !init?.method || String(init.method).toUpperCase() === 'GET';
+    let response;
+    for (let attempt = 0; ; attempt += 1) {
+      response = await fetchImpl(url, {
+        credentials: 'same-origin',
+        ...init,
+        headers: { Accept: 'application/json', ...(init?.headers || {}) },
+      });
+      if (!isRead || response.status !== 409 || attempt >= 3) break;
+      const peek = typeof response.clone === 'function' ? await response.clone().json().catch(() => null) : null;
+      if (peek?.code !== 'PAYROLL_CONTROL_IMPORT_SESSION_BUSY') break;
+      const wait = Math.min(3000, (Number(response.headers?.get?.('Retry-After')) || 1) * 1000) * (attempt + 1) * 0.5 + Math.random() * 250;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
     if (response.status === 401) {
       redirectToLogin();
       throw new Error('La sesión venció.');
@@ -196,6 +207,7 @@ export function createPayrollControlImportWorkflow(root, options = {}) {
         PAYROLL_CONTROL_IMPORT_VERSION_CONFLICT: 'La corrida cambió. Actualizá antes de decidir.',
         PAYROLL_CONTROL_IMPORT_NOT_FOUND: 'La corrida ya no está disponible en este contexto.',
         PAYROLL_CONTROL_IMPORT_SOURCE_INVALID: 'El archivo no cumple el contrato exacto de conceptos 701 y 703.',
+        PAYROLL_CONTROL_IMPORT_SESSION_BUSY: 'El acceso se está actualizando. Probá de nuevo en unos segundos.',
       };
       throw new Error(messages[code] || 'No se pudo completar la operación en el servidor.');
     }

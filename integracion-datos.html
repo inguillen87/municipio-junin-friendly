@@ -154,6 +154,8 @@
   <script src="assets/internal-guide.js" defer></script>
   <link rel="stylesheet" href="assets/municontrol-enterprise.css">
   <link rel="icon" href="assets/pwa/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/section-tabs.css">
+  <script type="module" src="assets/page-tabs.js"></script>
 </head>
 <body data-mc-page="integration">
   <a class="skip-link" href="#content">Saltar al contenido</a>
@@ -198,7 +200,7 @@
 
       <main id="content" hidden>
         <section class="page-head" aria-labelledby="pageTitle">
-          <div><p class="eyebrow">Gobierno de fuentes</p><h1 id="pageTitle">Integración y control de dotación</h1><p class="lead">Esta vista separa el estado laboral de la calidad de identidad. Ninguna coincidencia del padrón auxiliar puede cambiar un legajo, una liquidación o una baja de GRH.</p></div>
+          <div><p class="eyebrow">Reportes y control · integración de datos</p><h1 id="pageTitle">Integración y control de dotación</h1><p class="lead">Controlá que el personal activo de GRH coincida con el que se liquida y revisá cómo se vinculan los legajos con el padrón de personas. Ninguna coincidencia del padrón auxiliar puede cambiar un legajo, una liquidación o una baja de GRH.</p></div>
           <aside class="status-panel"><strong id="overallStatus">Estado del contrato</strong><p id="overallDetail">Esperando respuesta del backend.</p></aside>
         </section>
 
@@ -207,8 +209,9 @@
           <article class="auxiliary"><h2>PERSONAS es un padrón auxiliar</h2><p id="auxiliaryPolicy">Enriquece identidad, domicilios y territorio; no reemplaza ni gobierna GRH.</p></article>
         </section>
 
+        <div data-mc-tabs='[{"id":"dotacion","label":"Activos y liquidados","hint":"¿Coinciden las cantidades?","sel":"section[aria-labelledby=workforceTitle]"},{"id":"personas","label":"Vínculo con PERSONAS","hint":"Coincidencias de identidad","sel":"section[aria-labelledby=identityTitle]"},{"id":"tablas","label":"Datos disponibles","hint":"Tablas y advertencias","sel":"section[aria-labelledby=contractTitle]"}]' data-mc-tabs-key="mc.integracion.tab" data-mc-tabs-label="Secciones de Integración"></div>
         <section class="section" aria-labelledby="workforceTitle">
-          <header class="section-head"><div><span class="section-index">01 · CONTROL PRIORITARIO</span><h2 id="workforceTitle">Activo administrativo frente a corrida operativa</h2><p>El primer número nace de GRH. La inclusión y la brecha sólo aparecen cuando la vista laboral informa también si la corrida está abierta o cerrada.</p></div><span class="state-badge" id="workforceBadge">Consultando</span></header>
+          <header class="section-head"><div><span class="section-index">01 · CONTROL PRIORITARIO</span><h2 id="workforceTitle">Personal activo y personal liquidado</h2><p>El primer número nace de GRH. La inclusión y la brecha sólo aparecen cuando la vista laboral informa también si la corrida está abierta o cerrada.</p></div><span class="state-badge" id="workforceBadge">Consultando</span></header>
           <div class="metrics">
             <article class="metric" id="administrativeCard"><div class="metric-label">Activos administrativos</div><div class="metric-value" id="administrativeValue">—</div><div class="metric-status" id="administrativeStatus">Consultando</div><p class="metric-definition" id="administrativeDefinition"></p></article>
             <article class="metric" id="liquidableCard"><div class="metric-label">Incluidos en corrida actual</div><div class="metric-value" id="liquidableValue">—</div><div class="metric-status" id="liquidableStatus">Consultando</div><p class="metric-definition" id="liquidableDefinition"></p></article>
@@ -221,7 +224,7 @@
         </section>
 
         <section class="section" aria-labelledby="identityTitle">
-          <header class="section-head"><div><span class="section-index">02 · CALIDAD Y ENRIQUECIMIENTO</span><h2 id="identityTitle">Vinculación GRH con PERSONAS</h2><p>El crosswalk se usa para mejorar identidad y territorio. No modifica el estado laboral ni sustituye la fuente GRH.</p></div><span class="state-badge" id="crosswalkBadge">Consultando</span></header>
+          <header class="section-head"><div><span class="section-index">02 · CALIDAD Y ENRIQUECIMIENTO</span><h2 id="identityTitle">Vínculo de los legajos con el padrón PERSONAS</h2><p>El crosswalk se usa para mejorar identidad y territorio. No modifica el estado laboral ni sustituye la fuente GRH.</p></div><span class="state-badge" id="crosswalkBadge">Consultando</span></header>
           <div class="metrics">
             <article class="metric" id="matchedCard"><div class="metric-label">Vinculables</div><div class="metric-value" id="matchedValue">—</div><div class="metric-status" id="matchedStatus">Consultando</div><p class="metric-definition">Coincidencias con evidencia suficiente según la vista versionada.</p></article>
             <article class="metric" id="unmatchedCard"><div class="metric-label">Sin coincidencia</div><div class="metric-value" id="unmatchedValue">—</div><div class="metric-status" id="unmatchedStatus">Consultando</div><p class="metric-definition">Personas laborales que requieren nuevas fuentes o saneamiento.</p></article>
@@ -232,7 +235,7 @@
         </section>
 
         <section class="section" aria-labelledby="contractTitle">
-          <header class="section-head"><div><span class="section-index">03 · CONTRATO TÉCNICO</span><h2 id="contractTitle">Disponibilidad de tablas y vistas</h2><p>Una relación ausente se informa como “No cargado”. Una relación sin las columnas requeridas se informa como “Incompatible”.</p></div></header>
+          <header class="section-head"><div><span class="section-index">03 · CONTRATO TÉCNICO</span><h2 id="contractTitle">Qué datos están disponibles</h2><p>Una relación ausente se informa como “No cargado”. Una relación sin las columnas requeridas se informa como “Incompatible”.</p></div></header>
           <div class="contract-grid">
             <article class="panel"><h3>Dependencias</h3><p class="panel-note">No se consultan vistas que no cumplen el contrato.</p><div class="table-wrap"><table><caption class="visually-hidden">Estado de dependencias de integración</caption><thead><tr><th>Componente</th><th>Relación</th><th>Estado</th><th>Columnas faltantes</th></tr></thead><tbody id="relationRows"></tbody></table></div></article>
             <article class="panel"><h3>Límites vigentes</h3><p class="panel-note">Estas advertencias forman parte de la respuesta, no son notas decorativas.</p><ul class="limit-list" id="limitations"></ul></article>

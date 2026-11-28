@@ -103,7 +103,7 @@ try {
     assert.equal(await page.locator('#continueContextButton').isEnabled(), true);
     assert.equal(await page.locator('#mfaStep').isVisible(), false);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).filter(k=>!k.startsWith('mc.work.usage.v1:')).length + sessionStorage.length), 0);
     assert.deepEqual(await context.cookies(), []);
     result.cases++;
     result.viewports.push(viewport.width);

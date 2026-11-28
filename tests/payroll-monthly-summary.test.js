@@ -64,11 +64,12 @@ test('Excel has complete concepts, exact sources and control with no formula int
   for (const s of d.sources) for (const value of [s.datasetId, s.payloadHash, s.importedAt, s.sourceSha256]) assert.ok(sources.includes(value));
   assert.match(control, /No certifica que estén todas/); assert.match(control, /No se suman conceptos/); assert.match(control, /15 cifras/);
 });
-test('PDF contains exact decimals, all selected source identities and control in separate tables', () => {
+test('PDF contains exact decimals, complete institutional source references and control in separate tables', () => {
   const d = read(monthlyFixture(5)), bytes = monthlySummaryPdf(d, monthlySummaryFilter(d), when), raw = new TextDecoder().decode(bytes);
   const rendered = [...raw.matchAll(/<([0-9a-f]+)> Tj/g)].map(m => Buffer.from(m[1], 'hex').toString('latin1')).join('');
-  assert.match(raw, /^%PDF-1.4/); assert.match(raw, /\/MediaBox \[0 0 595 842\]/); assert.ok(rendered.includes('Fuentes exactas')); assert.ok(rendered.includes('Control y alcance'));
-  for (const s of d.sources) assert.ok(rendered.includes(s.datasetId));
+  assert.match(raw, /^%PDF-1.4/); assert.match(raw, /\/MediaBox \[0 0 595 842\]/); assert.ok(rendered.includes('Fuentes seleccionadas')); assert.ok(rendered.includes('Control y alcance'));
+  for (const s of d.sources) for (const value of [s.sourceLabel, s.date, String(s.sourcePeriod) + '-' + String(s.sourceMonth).padStart(2,'0'), s.type]) assert.ok(rendered.replace(/\s/g,'').includes(value.replace(/\s/g,'')));
+  assert.ok(rendered.replace(/\s/g,'').includes('Excelconservalasfuentes'));
   assert.ok(rendered.includes('9.999.999.999.999.999.999.999,99')); assert.ok(rendered.includes(d.reportHash));
 });
 test('export refuses a filter from a different snapshot', () => {

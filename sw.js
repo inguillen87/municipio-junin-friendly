@@ -64,7 +64,7 @@ const NEVER_INTERCEPT_PREFIXES = Object.freeze([
 
 const NEVER_INTERCEPT_PATHS = new Set([
   '/juridica', '/juridica-registro', '/juridica-registro.html', '/normativa', '/registro-normativo',
-  '/acceso', '/personal', '/acciones', '/relojes', '/tiempo', '/administracion', '/seguridad',
+  '/acceso', '/personal', '/acciones', '/relojes', '/asistencia-dispositivos', '/asistencia-dispositivos.html', '/tiempo', '/administracion', '/seguridad',
   '/integracion', '/nomina', '/novedades', '/comparativa', '/ausentismo', '/licencias', '/datos',
   '/login',
   '/login.html',
