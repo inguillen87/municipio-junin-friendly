@@ -6,7 +6,7 @@ import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
 import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPeople, batchCalcPlan, batchCalcSearch, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
 import { ownLiquidationCommand, ownLiquidationStates } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
-import { fetchOwnClose, OWN_CLOSE_ENDPOINT } from './own-payroll-close-read.js';
+import { fetchOwnClose, sendOwnCloseCommand } from './own-payroll-close-read.js';
 import { ownCloseCommand } from './own-payroll-close-model.js';
 
 const RUN = '/api/internal-own-payroll-run', ROSTER = '/api/internal-data?resource=nativeroster&schema=2&status=all';
@@ -105,9 +105,10 @@ async function closeRun(run, period, liquidationType, reason) {
   if (!rows.length) return 0;
   if (rows.some(r => r.canClose !== true)) throw Error('Hay personas de esta corrida que tu cuenta no puede cerrar o que cambiaron. Actualizá y probá otra vez.');
   const body = ownCloseCommand({ period, liquidationType, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, selection: { kind: 'all', values: [] }, command: 'close', groupId: null, reason, reviewConfirmed: true });
-  const response = await fetch(OWN_CLOSE_ENDPOINT + '?' + new URLSearchParams({ runId: run.id }), { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ operation: 'command', payload: body }) });
-  let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
-  if (!response.ok || value?.ok !== true) throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite cerrar liquidaciones.' : value?.error || 'No se registró el cierre.'), { status: response.status });
+  // La respuesta del cierre trae la foto completa de la corrida: si no entra en 4 MiB se repite el mismo envío, con la
+  // misma clave, en modo completo.
+  const sent = await sendOwnCloseCommand(crypto.randomUUID(), body, { runId: run.id }), value = sent.payload;
+  if (!sent.ok || value?.ok !== true) throw Object.assign(Error(sent.status === 401 ? 'La sesión venció. Volvé a ingresar.' : sent.status === 403 ? 'Tu cuenta no permite cerrar liquidaciones.' : value?.error || 'No se registró el cierre.'), { status: sent.status });
   return value.data?.snapshot?.employeeCount ?? rows.length;
 }
 

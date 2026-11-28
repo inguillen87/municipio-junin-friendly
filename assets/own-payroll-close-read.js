@@ -54,7 +54,9 @@ export async function fetchOwnClose(params,{signal,remaining,full=false,known,fe
 
 // Envío de una decisión con su clave de intento. El contenido se serializa una sola vez: el reenvío en modo completo
 // manda exactamente los mismos bytes con la misma clave.
-export function sendOwnCloseCommand(key,body,{signal,full=false,fetch:send=globalThis.fetch}={}){
+export function sendOwnCloseCommand(key,body,{signal,full=false,runId=null,fetch:send=globalThis.fetch}={}){
  const text=JSON.stringify({operation:'command',payload:body});
- return exchange(accept=>send(OWN_CLOSE_ENDPOINT,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:accept,'Content-Type':'application/json','Idempotency-Key':key},body:text,signal}),{signal,full});
+ // Con runId, el cierre de una sola corrida (264): la misma fachada, también en modo completo si no entra en 4 MiB.
+ const url=runId===null?OWN_CLOSE_ENDPOINT:ownCloseUrl({runId});
+ return exchange(accept=>send(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:accept,'Content-Type':'application/json','Idempotency-Key':key},body:text,signal}),{signal,full});
 }
