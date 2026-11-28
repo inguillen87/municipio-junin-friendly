@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Laboratorio de «Calcular un convenio completo»: el módulo real en un navegador, con un servidor simulado.
 // Comprueba el reparto en tandas, las personas que no se liquidan, el avance, una tanda que falla y se repite,
-// el total exacto y que la pantalla entra en escritorio y celular sin guardar nada en el navegador.
+// el total exacto, el buscador de legajos, la memoria del formulario y que la pantalla entra en escritorio y celular.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = process.argv.find(a => a.startsWith('--output='))?.slice(9) ?? path.join(root, 'verification', 'payroll-batch-calc-browser.json');
 const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
-const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
+const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), name: i === 5 ? 'PÉREZ LUCÍA' : 'PERSONA SINTÉTICA ' + (1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
   .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
 const posts = [], decisions = [], runs = new Map(), closed = new Set(), closes = [], closeReads = []; let failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
@@ -59,9 +59,18 @@ const browser = await chromium.launch({ ...(process.env.BROWSER_EXECUTABLE ? { e
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/'); const $ = n => page.locator('[data-bc-' + n + ']');
+  const paste = async (name, text) => { const box = $(name).locator('xpath=ancestor::details'); if (!(await box.evaluate(d => d.open))) await box.locator('summary').click(); await $(name).fill(text); };
   assert.equal(posts.length, 0); assert.ok(await $('plan').isDisabled()); checks.push('opening the screen reads and calculates nothing');
   assert.equal(await $('load').isHidden(), true); assert.equal(posts.length, 0); await $('period').fill('2026-11'); await $('agreement').focus(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').options.length === 3);
-  await $('agreement').selectOption('CONVENIO SINTÉTICO GRANDE'); await $('excluded').fill('1001, 1005\n7777 x9'); await $('plan').click();
+  assert.ok(await $('excluded-find').isDisabled()); await $('agreement').selectOption('CONVENIO SINTÉTICO GRANDE'); assert.ok(await $('excluded-find').isEnabled());
+  await $('excluded-find').fill('perez'); await $('excluded-results').locator('li', { hasText: 'PÉREZ LUCÍA' }).waitFor(); await $('excluded-find').press('Enter');
+  await $('excluded-find').fill('1001'); assert.match(await $('excluded-results').innerText(), /1001/); await $('excluded-results').locator('li').first().dispatchEvent('pointerdown');
+  assert.equal(await $('excluded').inputValue(), '1005, 1001'); assert.equal(await $('excluded-chips').locator('li').count(), 2); assert.match(await $('excluded-chips').innerText(), /PÉREZ LUCÍA/);
+  await $('excluded-find').fill('1005'); assert.doesNotMatch(await $('excluded-results').innerText(), /^1005/m, 'already chosen people are not offered again'); await $('excluded-find').fill('');
+  await $('excluded-chips').getByRole('button', { name: /Quitar el legajo 1001/ }).click(); assert.equal(await $('excluded').inputValue(), '1005');
+  await $('excluded-find').fill('1001, 1003'); await $('excluded-find').press('Enter'); assert.equal(await $('excluded').inputValue(), '1005, 1001, 1003');
+  checks.push('people are found by surname or legajo and chosen with a click or Enter; chips show the name and remove with a cross; several legajos can be pasted at once');
+  await paste('excluded', '1001, 1005\n7777 x9'); assert.match(await $('excluded-chips').innerText(), /7777\s*No está activo en este convenio/); await $('plan').click();
   assert.equal(await page.locator('.mc-batch-item').count(), 4); assert.match(await $('status').innerText(), /290 personas en 4 tandas/);
   const notes = await $('notes').innerText(); assert.match(notes, /No se liquidan este mes: 1001, 1005/); assert.match(notes, /7777/); assert.match(notes, /x9/); assert.equal(posts.length, 0);
   checks.push('292 people minus two left out become four even batches before anything is calculated');
@@ -86,7 +95,7 @@ try {
   assert.ok(decisions.every(d => d.body.operation === 'command' && d.body.payload.command === 'confirm' && d.body.payload.reviewConfirmed === true && d.body.payload.reason.length >= 10 && runs.get(d.body.payload.runId).resultSha256 === d.body.payload.resultSha256 && JSON.stringify(runs.get(d.body.payload.runId).selection) === JSON.stringify(d.body.payload.selection)));
   assert.ok(await $('confirm-go').isDisabled()); assert.equal(await page.locator('.mc-batch-item small', { hasText: 'Confirmada' }).count(), 4); checks.push('every batch is confirmed once, with its own result fingerprint and the same reason');
   // Corregir a dos personas: anular solo a ellas, recalcularlas y que las confirme otra persona.
-  await $('only').fill('1010, 1020'); assert.equal(await page.locator('.mc-batch-item').count(), 0);
+  await paste('only', '1010, 1020'); assert.equal(await page.locator('.mc-batch-item').count(), 0);
   assert.equal(await $('undo').isHidden(), true); await page.locator('[data-bc-mode=annul]').click(); assert.equal(await $('calc-step').isHidden(), true); assert.equal(await $('excluded-label').isHidden(), true); assert.match(await $('who-title').innerText(), /A quiénes anular/); await $('undo-find').click(); await page.waitForFunction(() => /2 confirmadas y 0 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.ok(await $('undo-go').isDisabled()); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(await $('undo-reason').inputValue(), ''); assert.equal(decisions.length, 5);
   checks.push('the three tasks are separate: Anular shows only who and why, without the calculation steps');
@@ -105,7 +114,7 @@ try {
   await page.waitForFunction(() => /2 personas confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.equal(decisions.at(-1).body.payload.command, 'confirm'); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 290);
   checks.push('a second person confirms an agreement calculated by someone else with one button');
-  await page.locator('[data-bc-mode=close]').click(); await $('only').fill(''); await $('undo-find').click(); await page.waitForFunction(() => /290 confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  await page.locator('[data-bc-mode=close]').click(); await paste('only', ''); await $('undo-find').click(); await page.waitForFunction(() => /290 confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.equal(await $('undo-go').isHidden(), true); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(closes.length, 0);
   await $('undo-reason').fill('Cierre de noviembre revisado contra la planilla'); await $('undo-reviewed').check(); assert.match(await $('undo-close').innerText(), /Cerrar 290 personas/); await $('undo-close').click();
   await page.waitForFunction(() => /290 personas cerradas/.test(document.querySelector('[data-bc-undo-status]').textContent));
@@ -120,8 +129,15 @@ try {
     await page.screenshot({ path: out.replace(/\.json$/, '-' + width + '.png'), fullPage: true });
   }
   checks.push('fits 1440, 390 and 320 px with 44 px controls');
-  assert.deepEqual(await page.evaluate(() => [Object.keys(localStorage).length, Object.keys(sessionStorage).length]), [0, 0]); assert.deepEqual(errors, []); checks.push('no browser storage and no page errors');
-  await page.locator('[data-bc-mode=calc]').click(); await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); await $('type').selectOption('vacation'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); await $('run').click(); await $('confirm').waitFor(); assert.equal(posts.at(-1).body.payload.liquidationType, 'vacation'); assert.match(await $('reason').inputValue(), /^Segunda liquidación 2026-11 de CONVENIO SINTÉTICO CHICO: 12 personas/); checks.push('changing the request discards the previous plan; a small agreement is a single batch; the second liquidation is calculated with its own type');
+  assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(k => !k.startsWith('mc-batch-calc:'))), []); assert.deepEqual(await page.evaluate(() => Object.keys(sessionStorage).filter(k => !k.startsWith('mc-batch-calc:'))), []);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('mc-batch-calc:excluded:CONVENIO SINTÉTICO GRANDE'))), { legajos: ['1001', '1005'], period: '2026-11' }); assert.deepEqual(errors, []); checks.push('the browser keeps only the form and the left-out legajos per agreement, and the page has no errors');
+  await page.locator('[data-bc-mode=calc]').click(); await paste('only', ''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); await $('type').selectOption('vacation'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); await $('run').click(); await $('confirm').waitFor(); assert.equal(posts.at(-1).body.payload.liquidationType, 'vacation'); assert.match(await $('reason').inputValue(), /^Segunda liquidación 2026-11 de CONVENIO SINTÉTICO CHICO: 12 personas/); checks.push('changing the request discards the previous plan; a small agreement is a single batch; the second liquidation is calculated with its own type');
+  await paste('excluded', ''); await $('agreement').selectOption('CONVENIO SINTÉTICO GRANDE'); await $('agreement').dispatchEvent('change');
+  assert.equal(await $('excluded').inputValue(), '1001, 1005'); assert.match(await $('excluded-note').innerText(), /no se liquidaron en noviembre de 2026/);
+  checks.push('choosing an agreement again offers last time\'s left-out legajos, with a note to review them');
+  await page.reload(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').value === 'CONVENIO SINTÉTICO GRANDE');
+  assert.equal(await $('period').inputValue(), '2026-11'); assert.equal(await $('type').inputValue(), 'vacation'); assert.equal(await $('excluded').inputValue(), '1001, 1005'); assert.match(await $('status').innerText(), /Se recuperó/);
+  assert.equal(await $('excluded-chips').locator('li').count(), 2); checks.push('reloading the page brings the card back with the same month, type, agreement and legajos');
   fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
   console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
 } finally { await browser.close(); server.close(); }

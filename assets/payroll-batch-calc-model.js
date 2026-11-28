@@ -118,3 +118,23 @@ export function batchCalcUndoScan(employees, wanted, seen) {
   }
   return { confirm: confirm.sort(), annul: annul.sort(), cancel: cancel.sort(), blocked: blocked.sort(), confirmed, calculated };
 }
+
+// Personas activas de un convenio, para el buscador de legajos: legajo y nombre, ordenadas por legajo.
+export function batchCalcPeople(rows, agreement) {
+  const seen = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (row?.agreement !== agreement || row.status !== 'active' || !row.contractId) continue;
+    const legajo = canon(row.legajo); if (!LEGAJO.test(legajo) || seen.has(legajo)) continue;
+    seen.set(legajo, { legajo, name: typeof row.name === 'string' ? row.name.trim() : '' });
+  }
+  return [...seen.values()].sort((a, b) => Number(a.legajo) - Number(b.legajo));
+}
+const fold = text => String(text ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+// Busca por número de legajo (desde el comienzo) o por palabras del nombre, sin importar tildes ni mayúsculas.
+export function batchCalcSearch(people, query, { limit = 8, skip = [] } = {}) {
+  const q = fold(query).trim(), out = new Set(skip.map(canon)); if (!q) return [];
+  const words = q.split(/\s+/u), digits = /^\d+$/.test(q);
+  const hit = p => !out.has(p.legajo) && (digits ? p.legajo.startsWith(q.replace(/^0+/, '') || '0') : words.every(w => fold(p.name).split(/\s+/u).some(n => n.startsWith(w))));
+  const found = []; for (const p of Array.isArray(people) ? people : []) { if (hit(p)) { found.push(p); if (found.length >= limit) break; } }
+  return found;
+}

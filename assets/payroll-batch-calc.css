@@ -38,6 +38,27 @@
 .mc-batch-total{margin:14px 0 0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .mc-batch-total div{padding:10px 12px;border-radius:10px;background:#f1f6f5;min-width:0}.mc-batch-total dt{color:#5b6673;font-size:.85rem}.mc-batch-total dd{margin:2px 0 0;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 
+/* Buscador de legajos: chips con nombre, lista desplegable y lista para pegar. */
+.mc-batch-pick{display:grid;gap:8px;min-width:0}.mc-batch-pick[hidden]{display:none}
+.mc-batch-pick-title{margin:0;font-weight:600}.mc-batch-pick-title small{font-weight:400;color:#5b6673}
+.mc-batch-chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}.mc-batch-chips:empty{display:none}
+.mc-batch-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 0 0 12px;border:1px solid #bfdcd5;border-radius:999px;background:#eef7f5;max-width:100%}
+.mc-batch-chip b{font-variant-numeric:tabular-nums}.mc-batch-chip span{color:#33424f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:28ch}
+.mc-batch-chip[data-known=false]{border-color:#e0b48a;background:#fdf4ec}.mc-batch-chip[data-known=false] span{color:#7a3a10}
+.mc-batch-chip button{width:44px;height:44px;flex:none;border:0;border-radius:50%;background:transparent;color:#33424f;font-size:1.15rem;line-height:1;cursor:pointer}
+.mc-batch-chip button:hover{background:#d9ebe7}.mc-batch-chip button:focus-visible{outline:2px solid #14766d;outline-offset:1px}
+.mc-batch-search{position:relative;min-width:0}
+.mc-batch-search input{box-sizing:border-box;width:100%;min-height:44px;font:inherit;padding:8px 12px;border:1.5px solid #c9d8d4;border-radius:10px}
+.mc-batch-search input:focus-visible{outline:3px solid #14766d;outline-offset:1px;border-color:#14766d}
+.mc-batch-results{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;background:#fff;border:1px solid #cfe0dc;border-radius:10px;box-shadow:0 8px 24px rgba(16,40,36,.14);max-height:320px;overflow:auto}
+.mc-batch-results li{display:flex;gap:12px;align-items:baseline;padding:10px 12px;border-radius:8px;cursor:pointer}
+.mc-batch-results li b{min-width:4ch;font-variant-numeric:tabular-nums}
+.mc-batch-results li[aria-selected=true],.mc-batch-results li:hover{background:#e6f4f1}
+.mc-batch-results .mc-batch-result-none{color:#5b6673;cursor:default}
+.mc-batch-pick-note{margin:0;color:#7a4a10}.mc-batch-pick-note:empty{display:none}
+.mc-batch-paste summary{cursor:pointer;color:#14766d;width:max-content;max-width:100%;min-height:44px;display:flex;align-items:center}
+.mc-batch-paste textarea{box-sizing:border-box;width:100%;min-height:72px;margin-top:6px;font:inherit;resize:vertical}
+
 .mc-batch-confirm{margin:16px 0 0;padding:14px;border:1px solid #cfe3de;border-radius:12px;background:#f4faf8;min-width:0}
 .mc-batch-confirm h4{margin:0 0 4px}.mc-batch-confirm>p{margin:0 0 10px;color:#5b6673;max-width:68ch}
 .mc-batch-confirm label{display:grid;gap:4px;font-weight:600;min-width:0}.mc-batch-confirm textarea{box-sizing:border-box;width:100%;min-width:0;min-height:72px;font:inherit;resize:vertical}

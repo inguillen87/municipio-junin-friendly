@@ -3,7 +3,7 @@
 // referencia de intento, igual que una corrida hecha desde «Calcular».
 import { OWN_RUN_COMMAND_VERSION, ownRunCommand } from './own-payroll-run-model.js';
 import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
-import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
+import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPeople, batchCalcPlan, batchCalcSearch, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
 import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
 import { fetchOwnClose, OWN_CLOSE_ENDPOINT } from './own-payroll-close-read.js';
@@ -107,8 +107,16 @@ export function mountBatchCalc(host) {
     + '<label class="mc-batch-agreement">Convenio <select data-bc-agreement><option value="">Tocá acá para ver los convenios</option></select></label>'
     + '<div class="mc-batch-actions mc-batch-reload" style="margin:0"><button type="button" class="button secondary" data-bc-load>Volver a traer</button></div></div></li>'
     + '<li><h4 data-bc-who-title>Quiénes</h4><div class="mc-batch-form">'
-    + '<label class="mc-batch-wide" data-bc-only-label>Solo estos legajos <small data-bc-only-help>Opcional. Vacío: todo el convenio.</small><textarea data-bc-only rows="2" inputmode="numeric" placeholder="Ejemplo: 1017, 1922, 2083"></textarea></label>'
-    + '<label class="mc-batch-wide" data-bc-excluded-label>No liquidar este mes <small>Legajos que este mes quedan afuera, separados por coma o renglón.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label></div></li>'
+    + '<div class="mc-batch-wide mc-batch-pick" data-bc-only-label role="group" aria-labelledby="mc-bc-only-title"><p class="mc-batch-pick-title" id="mc-bc-only-title">Solo estos legajos <small data-bc-only-help>Opcional. Vacío: todo el convenio.</small></p>'
+    + '<ul class="mc-batch-chips" data-bc-only-chips aria-label="Solo estos legajos: elegidos"></ul>'
+    + '<div class="mc-batch-search"><input type="search" data-bc-only-find role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="mc-bc-only-results" autocomplete="off" aria-label="Buscar persona para: Solo estos legajos"><ul class="mc-batch-results" role="listbox" id="mc-bc-only-results" data-bc-only-results hidden></ul></div>'
+    + '<p class="mc-batch-pick-note" data-bc-only-note></p>'
+    + '<details class="mc-batch-paste"><summary>Pegar una lista de legajos</summary><textarea data-bc-only rows="2" inputmode="numeric" aria-label="Solo estos legajos: lista de legajos" placeholder="Ejemplo: 1017, 1922, 2083"></textarea></details></div>'
+    + '<div class="mc-batch-wide mc-batch-pick" data-bc-excluded-label role="group" aria-labelledby="mc-bc-excluded-title"><p class="mc-batch-pick-title" id="mc-bc-excluded-title">No liquidar este mes <small>Quedan afuera de todas las tandas.</small></p>'
+    + '<ul class="mc-batch-chips" data-bc-excluded-chips aria-label="No liquidar este mes: elegidos"></ul>'
+    + '<div class="mc-batch-search"><input type="search" data-bc-excluded-find role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="mc-bc-excluded-results" autocomplete="off" aria-label="Buscar persona para: No liquidar este mes"><ul class="mc-batch-results" role="listbox" id="mc-bc-excluded-results" data-bc-excluded-results hidden></ul></div>'
+    + '<p class="mc-batch-pick-note" data-bc-excluded-note></p>'
+    + '<details class="mc-batch-paste"><summary>Pegar una lista de legajos</summary><textarea data-bc-excluded rows="2" inputmode="numeric" aria-label="No liquidar este mes: lista de legajos" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></details></div></div></li>'
     + '<li data-bc-calc-step><h4>Calcular</h4><div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-plan disabled>Armar tandas</button><button type="button" class="button primary" data-bc-run hidden></button></div>'
     + '<p class="mc-batch-status" role="status" aria-live="polite" data-bc-status></p><ul class="mc-batch-notes" data-bc-notes></ul>'
     + '<div data-bc-progress hidden><div class="mc-batch-bar" data-bc-bar role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance del cálculo"><span></span></div><p class="mc-batch-count" data-bc-count></p></div>'
@@ -125,7 +133,7 @@ export function mountBatchCalc(host) {
     + '</ol>';
   const $ = name => host.querySelector('[data-bc-' + name + ']');
   const now = new Date(); $('period').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  let rows = null, plan = null, state = [], busy = false, boot = null, undo = null, mode = 'calc';
+  let rows = null, plan = null, state = [], busy = false, boot = null, undo = null, mode = 'calc', pickers = [], restoreAgreement = null;
   const status = text => { $('status').textContent = text; };
   const controls = () => {
     $('load').disabled = busy; $('load').hidden = !rows; $('agreement').disabled = busy; $('period').disabled = busy; $('type').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
@@ -144,9 +152,84 @@ export function mountBatchCalc(host) {
     $('run').hidden = !plan || !plan.batches.length || !pending;
     $('run').disabled = busy;
     $('run').textContent = state.some(s => s.state === 'done' || s.state === 'failed') ? 'Seguir con ' + pending + (pending === 1 ? ' tanda' : ' tandas') : 'Calcular ' + pending + (pending === 1 ? ' tanda' : ' tandas');
+    for (const p of pickers) p.paint();
   };
   const forgetUndo = () => { undo = null; $('undo-status').textContent = ''; $('undo-reason').value = ''; $('undo-reviewed').checked = false; };
   const forget = () => { plan = null; state = []; forgetUndo(); $('list').replaceChildren(); $('notes').replaceChildren(); $('progress').hidden = true; $('total').hidden = true; $('confirm').hidden = true; $('reason').value = ''; delete $('reason').dataset.proposed; $('reviewed').checked = false; $('confirm-status').textContent = ''; controls(); };
+
+  // Memoria del navegador: el formulario de esta pestaña (una recarga no lo borra) y, por convenio, los legajos que la
+  // última vez no se liquidaron. Si el navegador no permite guardar, la tarjeta funciona igual, sin recordar.
+  const MEM = 'mc-batch-calc:';
+  const remember = (store, key, value) => { try { store.setItem(MEM + key, JSON.stringify(value)); } catch { /* sin memoria */ } };
+  const recall = (store, key) => { try { return JSON.parse(store.getItem(MEM + key) ?? 'null'); } catch { return null; } };
+  const saveForm = () => remember(sessionStorage, 'form', { period: $('period').value, type: $('type').value, agreement: $('agreement').value || restoreAgreement || '', excluded: $('excluded').value, only: $('only').value, mode });
+  const monthName = period => { const [y, m] = String(period).split('-').map(Number); return y && m ? new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : String(period); };
+  // Buscador de personas del convenio elegido: se escribe parte del apellido, del nombre o del legajo y se toca la
+  // persona. Lo elegido queda a la vista con su nombre y se quita con la cruz. La lista de legajos sigue disponible
+  // para pegar varios de una vez.
+  function picker(name, label) {
+    const area = $(name), find = $(name + '-find'), list = $(name + '-results'), chips = $(name + '-chips'), note = $(name + '-note');
+    let found = [], active = -1;
+    const people = () => (rows && $('agreement').value ? batchCalcPeople(rows, $('agreement').value) : []);
+    const current = () => batchCalcLegajos(area.value).valid;
+    const set = values => { area.value = values.join(', '); area.dispatchEvent(new Event('input', { bubbles: true })); };
+    const close = () => { list.hidden = true; find.setAttribute('aria-expanded', 'false'); find.removeAttribute('aria-activedescendant'); active = -1; };
+    const add = legajos => { const v = current(); set([...v, ...legajos.filter(l => !v.includes(l))]); find.value = ''; close(); find.focus(); };
+    function highlight(next) {
+      active = next; [...list.children].forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+      if (active >= 0 && list.children[active]) { find.setAttribute('aria-activedescendant', list.children[active].id); list.children[active].scrollIntoView({ block: 'nearest' }); }
+    }
+    function show() {
+      const query = find.value.trim(), typed = batchCalcLegajos(query).valid;
+      if (!query) { close(); return; }
+      found = batchCalcSearch(people(), query, { skip: current() });
+      const several = typed.length > 1 && /[\s,;]/u.test(query);
+      list.replaceChildren(...(several ? [Object.assign(node('li', 'Agregar ' + typed.length + ' legajos: ' + typed.join(', '), 'mc-batch-result-all'), { id: area.dataset.pickId + '-all' })] : found.map((p, i) => {
+        const li = node('li', null, 'mc-batch-result'); li.id = area.dataset.pickId + '-' + i; li.setAttribute('role', 'option');
+        li.append(node('b', p.legajo), node('span', p.name || 'Sin nombre en el padrón'));
+        li.addEventListener('pointerdown', e => { e.preventDefault(); add([p.legajo]); });
+        return li;
+      })));
+      if (several) { list.firstChild.setAttribute('role', 'option'); list.firstChild.addEventListener('pointerdown', e => { e.preventDefault(); add(typed); }); found = [{ all: typed }]; }
+      if (!found.length) list.append(node('li', 'Nadie con «' + query + '» en este convenio.', 'mc-batch-result-none'));
+      list.hidden = false; find.setAttribute('aria-expanded', 'true'); highlight(found.length ? 0 : -1);
+    }
+    find.addEventListener('input', show);
+    find.addEventListener('focus', () => { if (find.value.trim()) show(); });
+    find.addEventListener('blur', () => setTimeout(close, 120));
+    find.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' && found.length) { e.preventDefault(); if (list.hidden) show(); highlight(Math.min(found.length - 1, active + 1)); }
+      else if (e.key === 'ArrowUp' && found.length) { e.preventDefault(); highlight(Math.max(0, active - 1)); }
+      else if (e.key === 'Enter') { e.preventDefault(); const pick = found[active]; if (pick) add(pick.all ?? [pick.legajo]); }
+      else if (e.key === 'Escape') { if (!list.hidden) { e.preventDefault(); close(); } }
+      else if (e.key === 'Backspace' && !find.value) { const v = current(); if (v.length) set(v.slice(0, -1)); }
+    });
+    function paint() {
+      const names = new Map(people().map(p => [p.legajo, p.name])), chosen = current(), ready = !!rows && !!$('agreement').value;
+      chips.replaceChildren(...chosen.map(legajo => {
+        const li = node('li', null, 'mc-batch-chip'), known = names.has(legajo); li.dataset.known = String(known || !ready);
+        li.append(node('b', legajo), node('span', known ? names.get(legajo) : ready ? 'No está activo en este convenio' : ''));
+        const out = node('button', '×'); out.type = 'button'; out.disabled = busy; out.setAttribute('aria-label', 'Quitar el legajo ' + legajo + ' de «' + label + '»');
+        out.addEventListener('click', () => { set(current().filter(l => l !== legajo)); find.focus(); });
+        li.append(out); return li;
+      }));
+      find.disabled = busy || !ready; area.disabled = busy;
+      find.placeholder = !ready ? 'Primero elegí el convenio' : 'Buscá por apellido, nombre o legajo';
+    }
+    area.dataset.pickId = 'mc-bc-' + name + '-' + Math.random().toString(36).slice(2, 8);
+    area.addEventListener('input', () => { note.textContent = ''; paint(); });
+    return { paint, note: text => { note.textContent = text; } };
+  }
+  pickers = [picker('only', 'Solo estos legajos'), picker('excluded', 'No liquidar este mes')];
+  const [, excludedPicker] = pickers;
+  // Al elegir el convenio, si «No liquidar» está vacío, se proponen los de la última vez para revisarlos.
+  function offerExcluded() {
+    const agreement = $('agreement').value; if (mode !== 'calc' || !agreement || $('excluded').value.trim()) return;
+    const saved = recall(localStorage, 'excluded:' + agreement);
+    if (!saved || !Array.isArray(saved.legajos) || !saved.legajos.length) return;
+    $('excluded').value = saved.legajos.join(', '); controls();
+    excludedPicker.note('Son los que no se liquidaron en ' + monthName(saved.period) + '. Quitá a quien este mes sí se liquida.');
+  }
   function paint() {
     const done = state.filter(s => s.state === 'done'), people = done.reduce((n, s) => n + s.batch.people, 0), failed = state.some(s => s.state === 'failed');
     const share = plan?.people ? people / plan.people : 0;
@@ -198,7 +281,9 @@ export function mountBatchCalc(host) {
       const options = batchCalcAgreements(rows), select = $('agreement'), keep = select.value;
       select.replaceChildren(node('option', options.length ? 'Elegí un convenio' : 'No hay contratos activos'), ...options.map(o => { const option = node('option', o.agreement + ' · ' + o.people + (o.people === 1 ? ' persona' : ' personas')); option.value = o.agreement; return option; }));
       select.firstChild.value = ''; if (options.some(o => o.agreement === keep)) select.value = keep;
-      status(options.length ? 'Elegí el convenio.' : 'El padrón propio no tiene contratos activos.');
+      const restored = !!restoreAgreement && options.some(o => o.agreement === restoreAgreement); if (restored) select.value = restoreAgreement;
+      restoreAgreement = null;
+      status(restored ? 'Se recuperó lo que estabas haciendo. Revisá y seguí.' : options.length ? 'Elegí el convenio.' : 'El padrón propio no tiene contratos activos.');
     } catch (e) { rows = null; status(e.message); } finally { busy = false; controls(); }
   }
   function arrange() {
@@ -207,6 +292,7 @@ export function mountBatchCalc(host) {
       const typed = batchCalcLegajos($('excluded').value);
       const just = batchCalcLegajos($('only').value);
       plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, excluded: typed.valid, only: just.valid });
+      if (!plan.only.length) remember(localStorage, 'excluded:' + plan.agreement, { legajos: plan.excluded, period: plan.period });
       state = plan.batches.map(batch => ({ batch, state: 'queued', key: crypto.randomUUID(), confirmKey: crypto.randomUUID(), confirmed: false, totals: null, seconds: 0, error: '' })); boot = null;
       const notes = [];
       if (plan.only.length) notes.push('Solo se calculan: ' + plan.only.join(', ') + '.');
@@ -292,7 +378,8 @@ export function mountBatchCalc(host) {
   $('undo-find').addEventListener('click', findUndo); $('undo-go').addEventListener('click', () => undoAll('undo')); $('undo-confirm').addEventListener('click', () => undoAll('confirm')); $('undo-reviewed').addEventListener('change', controls); $('undo-reason').addEventListener('input', controls);
   $('confirm-go').addEventListener('click', confirmAll); $('reviewed').addEventListener('change', paint); $('reason').addEventListener('input', paint);
   $('load').addEventListener('click', load); $('plan').addEventListener('click', arrange); $('run').addEventListener('click', () => run());
-  for (const name of ['agreement', 'period', 'type', 'excluded', 'only']) $(name).addEventListener('input', () => { if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
+  for (const name of ['agreement', 'period', 'type', 'excluded', 'only']) $(name).addEventListener('input', () => { saveForm(); if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
+  $('agreement').addEventListener('change', () => { offerExcluded(); saveForm(); });
   // Una decisión en curso no se corta por cerrar la pestaña sin querer.
   addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   // El padrón se trae al primer toque sobre la lista de convenios: nada se lee al abrir la pantalla.
@@ -309,9 +396,20 @@ export function mountBatchCalc(host) {
     $('who-title').textContent = HELP[mode][0]; $('only-help').textContent = HELP[mode][1];
     $('undo-title').textContent = { confirm: 'Buscar lo calculado y confirmarlo', annul: 'Buscar lo calculado y anularlo', close: 'Buscar lo confirmado y cerrarlo' }[mode] ?? '';
     $('undo-help').textContent = { confirm: 'Busca lo calculado sin confirmar, lo haya calculado quien sea. Después lo confirmás todo junto con un motivo.', annul: 'Busca lo confirmado o calculado del mes para esas personas. Después lo anulás todo junto con un motivo. No se borra nada: queda registrado quién anuló y por qué.', close: 'Busca lo confirmado del mes y lo cierra corrida por corrida. Después del cierre se emiten recibos, banco y reportes; para cambiar algo cerrado primero hay que reabrirlo.' }[mode] ?? '';
-    status(''); controls();
+    status(''); controls(); saveForm();
   }
   for (const tab of host.querySelectorAll('[data-bc-mode]')) tab.addEventListener('click', () => setMode(tab.dataset.bcMode));
-  status('Elegí el mes y el convenio.'); controls();
+  status('Elegí el mes y el convenio.');
+  // Después de una recarga, la tarjeta vuelve como estaba: mismo mes, tipo, convenio y legajos elegidos.
+  const saved = recall(sessionStorage, 'form');
+  if (saved && typeof saved === 'object') {
+    if (typeof saved.period === 'string' && /^\d{4}-\d{2}$/.test(saved.period)) $('period').value = saved.period;
+    if (BATCH_CALC_TYPES.some(t => t.value === saved.type)) $('type').value = saved.type;
+    if (typeof saved.excluded === 'string') $('excluded').value = saved.excluded.slice(0, 5000);
+    if (typeof saved.only === 'string') $('only').value = saved.only.slice(0, 5000);
+    if (HELP[saved.mode]) setMode(saved.mode);
+    if (typeof saved.agreement === 'string' && saved.agreement) { restoreAgreement = saved.agreement; load(); }
+  }
+  controls();
   return { load, arrange, run, setMode };
 }

@@ -103,3 +103,21 @@ test('the liquidation type travels with the plan and only known types are offere
   const runs = [{ id: 'm', period: '2026-11', liquidationType: 'monthly', createdAt: '2026-11-27T10:00:00Z' }, { id: 'v', period: '2026-11', liquidationType: 'vacation', createdAt: '2026-11-27T11:00:00Z' }];
   assert.deepEqual(batchCalcUndoRuns(runs, '2026-11', 'vacation').map(r => r.id), ['v']); assert.deepEqual(batchCalcUndoRuns(runs, '2026-11').map(r => r.id), ['m']);
 });
+
+test('the legajo finder lists the active people of the agreement and searches by legajo or name without accents', async () => {
+  const { batchCalcPeople, batchCalcSearch } = await import('../assets/payroll-batch-calc-model.js');
+  const rows = [
+    { contractId: 'a', legajo: '1344', name: 'PÉREZ JUAN', agreement: 'PERSONAL TEMPORARIO', status: 'active' },
+    { contractId: 'b', legajo: '134', name: 'GÓMEZ ANA MARÍA', agreement: 'PERSONAL TEMPORARIO', status: 'active' },
+    { contractId: 'c', legajo: '200', name: 'BAJA', agreement: 'PERSONAL TEMPORARIO', status: 'inactive' },
+    { contractId: 'd', legajo: '1', name: 'OTRO', agreement: 'OTRO CONVENIO', status: 'active' },
+  ];
+  const people = batchCalcPeople(rows, 'PERSONAL TEMPORARIO');
+  assert.deepEqual(people, [{ legajo: '134', name: 'GÓMEZ ANA MARÍA' }, { legajo: '1344', name: 'PÉREZ JUAN' }]);
+  assert.deepEqual(batchCalcSearch(people, '134').map(p => p.legajo), ['134', '1344']);
+  assert.deepEqual(batchCalcSearch(people, 'perez').map(p => p.legajo), ['1344']);
+  assert.deepEqual(batchCalcSearch(people, 'maria gom').map(p => p.legajo), ['134']);
+  assert.deepEqual(batchCalcSearch(people, '134', { skip: ['134'] }).map(p => p.legajo), ['1344']);
+  assert.deepEqual(batchCalcSearch(people, ''), []);
+  assert.equal(batchCalcSearch(people, 'zz').length, 0);
+});
