@@ -26,55 +26,59 @@ async function post(url,body){const k=key();let last;
 /** Lista unificada de lo que espera decisión en el período. */
 export async function loadQuickApprovals(periods,{onPartial}={}){
  periods=[].concat(periods);const items=[];const errors=[];
- try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
+ // Todas las lecturas salen juntas: la lista tarda lo que la más lenta, no la suma de todas. Cada una conserva su
+ // propio manejo de errores; el orden final lo fija «order».
+ const tasks=[];
+ tasks.push((async()=>{try{const b=await patientRead(()=>getJson('/api/internal-own-payroll-novelties?resource=bootstrap'));
   for(const x of b.batches??[])if(x.status==='submitted'&&periods.some(period=>x.periodMonth===period+'-01'))items.push({kind:'novelty',id:x.id,revision:x.revision,period:x.periodMonth.slice(0,7),label:'Lote de novedades de '+periodLabel(x.periodMonth)+' · '+x.rowCount+(x.rowCount===1?' fila':' filas'),canApprove:b.permissions?.canApprove===true});}
- catch(e){if(e.status!==403)errors.push('Novedades: '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Novedades: '+e.message);}})());
  // Novedades fijas con propuesta pendiente que ya rigen en el mes elegido (o antes): se aprueban con la misma lista.
- try{const f=await patientRead(()=>getJson('/api/internal-payroll-fixed-novelties?resource=list'));const last=[...periods].sort().at(-1);
+ tasks.push((async()=>{try{const f=await patientRead(()=>getJson('/api/internal-payroll-fixed-novelties?resource=list'));const last=[...periods].sort().at(-1);
   for(const r of f.rows??[]){const p=r.pending;if(!p)continue;const from=String(p.values?.validFrom??'').slice(0,7);if(from&&from>last)continue;
    items.push({kind:'fixed',id:r.id,proposalId:p.id,version:r.version,period:from||last,label:'Novedad fija · legajo '+(r.subject?.legajo??'')+' · concepto '+(p.values?.conceptSourceId??'')+(from?' · desde '+periodLabel(from):''),canApprove:p.canReview===true});}}
- catch(e){if(e.status!==403)errors.push('Novedades fijas: '+e.message);}
- for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
+ catch(e){if(e.status!==403)errors.push('Novedades fijas: '+e.message);}})());
+ tasks.push((async()=>{for(const period of periods)try{const p=participationPending(await patientRead(()=>getJson('/api/internal-own-period-participation?resource=pending&period='+encodeURIComponent(period))),period);
   for(const x of p.proposals)items.push({kind:'participation',id:x.proposalId,contractId:x.contractId,period,label:'Participación de '+periodLabel(period)+' · legajo '+(x.legajo??'sin número'),canApprove:x.canReview,author:x.authorLabel});}
- catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}
- for(const period of periods)try{const h=familySelectedHistory(await patientRead(()=>getJson('/api/internal-own-contract-family-payroll-facts-selection?'+new URLSearchParams({resource:'history',period}))));
+ catch(e){if(e.status!==403)errors.push('Participación de '+periodLabel(period)+': '+e.message);}})());
+ tasks.push((async()=>{for(const period of periods)try{const h=familySelectedHistory(await patientRead(()=>getJson('/api/internal-own-contract-family-payroll-facts-selection?'+new URLSearchParams({resource:'history',period}))));
   for(const x of h.proposals)if(x.status==='pending')items.push({kind:'family',id:x.id,period,label:'Datos familiares de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Datos familiares de '+periodLabel(period)+': '+e.message);}
- for(const period of periods)try{const h=salaryNativeHistory(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions-native?'+new URLSearchParams({resource:'history',period}))));
+ catch(e){if(e.status!==403)errors.push('Datos familiares de '+periodLabel(period)+': '+e.message);}})());
+ tasks.push((async()=>{for(const period of periods)try{const h=salaryNativeHistory(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions-native?'+new URLSearchParams({resource:'history',period}))));
   for(const x of h.proposals)if(x.status==='pending')items.push({kind:'conditions',id:x.id,period,label:'Condiciones salariales de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Condiciones salariales de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Condiciones salariales de '+periodLabel(period)+': '+e.message);}})());
  // Antigüedad, título e insalubridad: también se aprueba por mes.
- for(const period of periods)try{const b=salaryConditionsBootstrap(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'bootstrap',period}))));
+ tasks.push((async()=>{for(const period of periods)try{const b=salaryConditionsBootstrap(await patientRead(()=>getJson('/api/internal-own-contract-salary-conditions?'+new URLSearchParams({resource:'bootstrap',period}))));
   for(const x of b.proposals)if(x.status==='pending')items.push({kind:'seniority',id:x.id,period,label:'Antigüedad, título e insalubridad de '+periodLabel(period)+' · '+x.itemCount+(x.itemCount===1?' contrato':' contratos'),canApprove:x.canReview===true&&b.permissions.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Antigüedad, título e insalubridad de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Antigüedad, título e insalubridad de '+periodLabel(period)+': '+e.message);}})());
  // Antigüedad reconocida: una propuesta por contrato; se muestra como un solo renglón por mes y se aprueba de una vez.
- for(const period of periods)try{const p=seniorityPending(await patientRead(()=>getJson('/api/internal-own-salary-seniority?'+new URLSearchParams({resource:'pending',period}))),period);
+ tasks.push((async()=>{for(const period of periods)try{const p=seniorityPending(await patientRead(()=>getJson('/api/internal-own-salary-seniority?'+new URLSearchParams({resource:'pending',period}))),period);
   const mine=p.proposals.filter(x=>x.canReview),others=p.proposals.filter(x=>!x.canReview);
   if(mine.length)items.push({kind:'seniorityYears',period,proposals:mine,label:'Antigüedad reconocida de '+periodLabel(period)+' · '+mine.length+(mine.length===1?' contrato':' contratos'),canApprove:true});
   if(others.length)items.push({kind:'seniorityYears',period,proposals:others,label:'Antigüedad reconocida de '+periodLabel(period)+' · '+others.length+(others.length===1?' contrato':' contratos'),canApprove:false});}
- catch(e){if(e.status!==403)errors.push('Antigüedad reconocida de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Antigüedad reconocida de '+periodLabel(period)+': '+e.message);}})());
  // Jornada contractual: una propuesta por contrato, agrupada en un renglón por mes.
- for(const period of periods)try{const p=workingTimePending(await patientRead(()=>getJson('/api/internal-own-contract-working-time?'+new URLSearchParams({resource:'pending',period}))),period);
+ tasks.push((async()=>{for(const period of periods)try{const p=workingTimePending(await patientRead(()=>getJson('/api/internal-own-contract-working-time?'+new URLSearchParams({resource:'pending',period}))),period);
   const mine=p.proposals.filter(x=>x.canReview),others=p.proposals.filter(x=>!x.canReview);
   for(const [list,can] of [[mine,true],[others,false]])if(list.length)items.push({kind:'workingTime',period,proposals:list,label:'Jornada contractual de '+periodLabel(period)+' · '+list.length+(list.length===1?' contrato':' contratos'),canApprove:can});}
- catch(e){if(e.status!==403)errors.push('Jornada contractual de '+periodLabel(period)+': '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Jornada contractual de '+periodLabel(period)+': '+e.message);}})());
  // Jornada del convenio: una propuesta por mes para todos los convenios.
- for(const period of periods)try{const b=agreementWorkingTimeBootstrap(await patientRead(()=>getJson('/api/internal-own-agreement-working-time?'+new URLSearchParams({resource:'bootstrap',period}))));
+ tasks.push((async()=>{for(const period of periods)try{const b=agreementWorkingTimeBootstrap(await patientRead(()=>getJson('/api/internal-own-agreement-working-time?'+new URLSearchParams({resource:'bootstrap',period}))));
   for(const x of b.proposals)if(x.status==='pending')items.push({kind:'agreementTime',id:x.id,period,label:'Jornada por convenio de '+periodLabel(period),canApprove:x.canReview===true&&b.permissions.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Jornada por convenio de '+periodLabel(period)+': '+e.message);}
- onPartial?.([...items]);
+ catch(e){if(e.status!==403)errors.push('Jornada por convenio de '+periodLabel(period)+': '+e.message);}})());
  // Maestro salarial y reglas no son de un mes: se muestran siempre que esperen decisión.
- try{const sal=await patientRead(()=>getJson('/api/internal-native-salary?resource=pending')).catch(async e=>{if(e.status!==400&&e.status!==503)throw e;
+ tasks.push((async()=>{try{const sal=await patientRead(()=>getJson('/api/internal-native-salary?resource=pending')).catch(async e=>{if(e.status!==400&&e.status!==503)throw e;
    // Antes de instalar la lectura liviana se usa la lectura completa por bloques.
    return readSalaryBootstrap(async(index,snapshot)=>{const q=new URLSearchParams({resource:'stream',page:String(index)});if(snapshot)q.set('snapshot',snapshot);return getJson('/api/internal-native-salary?'+q);});});
   for(const x of sal.proposals??[])if(x.status==='pending')items.push({kind:'salary',proposal:x,scopeVersion:sal.scopeVersion,label:'Maestro salarial · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Maestro salarial: '+e.message);}
- try{const pr=await patientRead(()=>getJson('/api/internal-own-payroll-program?resource=bootstrap'));
+ catch(e){if(e.status!==403)errors.push('Maestro salarial: '+e.message);}})());
+ tasks.push((async()=>{try{const pr=await patientRead(()=>getJson('/api/internal-own-payroll-program?resource=pending')).catch(e=>{if(e.status!==400)throw e;return patientRead(()=>getJson('/api/internal-own-payroll-program?resource=bootstrap'));});
   // Una propuesta preparada sobre reglas o maestro que ya cambiaron no se puede aprobar (la reemplazó otra): no se lista.
   const current=x=>(!pr.program?.version||x.baseVersion===pr.program.version)&&(!pr.salaryCatalog?.version||!x.salaryVersion||x.salaryVersion===pr.salaryCatalog.version);
   for(const x of pr.proposals??[])if(x.status==='pending'&&current(x))items.push({kind:'program',proposal:x,scopeVersion:pr.scopeVersion,label:'Reglas de liquidación · '+(x.reason||'propuesta'),canApprove:x.canReview===true});}
- catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}
+ catch(e){if(e.status!==403)errors.push('Reglas: '+e.message);}})());
  // El maestro va antes que las reglas: una propuesta de reglas puede depender del maestro nuevo.
+ let done=0;for(const t of tasks)t.finally(()=>{done++;if(done<tasks.length)onPartial?.([...items]);});
+ await Promise.all(tasks);
  const order={fixed:0,novelty:0,participation:1,family:2,conditions:3,seniority:3,seniorityYears:3,workingTime:3,agreementTime:3,salary:4,program:5};items.sort((a,b)=>order[a.kind]-order[b.kind]);
  return {items,errors};
 }

@@ -28,7 +28,7 @@ export function createOwnProgramHandler(deps = {}) {
         schoolCertificateHttp.assertOrigin(req, env);
         if (schoolCertificateHttp.header(req, 'content-type').split(';')[0].trim().toLowerCase() !== 'application/json') programFail('CONTENT_TYPE', 415, 'Se requiere un formulario JSON.');
         schoolCertificateHttp.checkLength(req, OWN_PROGRAM_MAX_BYTES);
-      } else if (q.resource === 'bootstrap' && Object.keys(q).join('|') === 'resource') { operation = 'bootstrap'; input = {}; }
+      } else if ((q.resource === 'bootstrap' || q.resource === 'pending') && Object.keys(q).join('|') === 'resource') { operation = q.resource; input = {}; }
       else if (q.resource === 'attempt' && Object.keys(q).sort().join('|') === 'key|resource') { operation = 'attempt'; input = { key: q.key }; }
       else programFail('QUERY_INVALID', 400, 'Consulta inválida.');
       const access = await authorize(req, res, { env, requiredCapabilities: PROGRAM_READ, capabilityMode: 'all', requireDataPlaneReady: true, requireCertifiedDataBinding: true, allowLegacy: false });

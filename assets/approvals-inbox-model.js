@@ -73,7 +73,7 @@ export function salaryMaster(p) {
 
 export const APPROVAL_SOURCES = Object.freeze([
   { key: 'program', area: 'Liquidaciones', title: 'Programa de cálculo', href: '/nomina#reglas', caps: ['workforce.employee.read', 'payroll.parameter.read'],
-    url: () => '/api/internal-own-payroll-program?resource=bootstrap', pick: programProposals },
+    url: () => '/api/internal-own-payroll-program?resource=pending', pick: programProposals },
   { key: 'salary-master', area: 'Liquidaciones', title: 'Maestro salarial', href: '/nomina#parametros', caps: ['workforce.employee.read', 'payroll.parameter.read'],
     url: () => '/api/internal-native-salary?resource=bootstrap', pick: salaryMaster },
   { key: 'parameters', area: 'Liquidaciones', title: 'Parámetros salariales', href: '/nomina#parametros', caps: ['payroll.parameter.read'],

@@ -70,7 +70,7 @@ const allCaps = new Set(APPROVAL_SOURCES.flatMap(s => s.caps));
 test('de cada circuito de la bandeja la campanita toma sólo cuántos esperan y cuántos decide esta cuenta', async () => {
  const sources = visibleApprovalSources(allCaps).filter(s => ['program', 'salary-master'].includes(s.key)), asked = [];
  const circuits = await pendingBellCircuits(async url => { asked.push(url); return url.includes('native-salary') ? master(2) : {ok: true, data: {proposals: []}}; }, sources, '2026-10');
- assert.deepEqual(asked.sort(), ['/api/internal-native-salary?resource=bootstrap', '/api/internal-own-payroll-program?resource=bootstrap']);
+ assert.deepEqual(asked.sort(), ['/api/internal-native-salary?resource=bootstrap', '/api/internal-own-payroll-program?resource=pending']);
  assert.deepEqual(circuits, [{key: 'program', title: 'Programa de cálculo', href: '/nomina#reglas', count: 0, reviewable: 0}, {key: 'salary-master', title: 'Maestro salarial', href: '/nomina#parametros', count: 2, reviewable: 1}]);
  assert.ok(!JSON.stringify(circuits).includes('Motivo') && !JSON.stringify(circuits).includes('Preparación'), 'ni fundamentos ni personas');
  const state = bellState([], [], circuits); assert.equal(state.waiting, 1); assert.equal(state.elsewhere, 1);

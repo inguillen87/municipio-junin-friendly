@@ -8,7 +8,7 @@ const byKey = Object.fromEntries(APPROVAL_SOURCES.map(s => [s.key, s]));
 test('every source is a read-only GET to an existing API and links to its own review screen', () => {
   for (const s of APPROVAL_SOURCES) {
     const url = s.url({ period: '2026-10' });
-    assert.match(url, /^\/api\/internal-[a-z-]+\?resource=(bootstrap|list|queue)/, s.key);
+    assert.match(url, /^\/api\/internal-[a-z-]+\?resource=(bootstrap|list|queue|pending)/, s.key);
     assert.ok(fs.existsSync(new URL('../api/' + url.split('?')[0].slice(5) + '.js', import.meta.url)), 'api exists for ' + s.key);
     assert.match(s.href, /^\/(nomina|novedades|personal|acciones)/, s.key);
     assert.ok(s.caps.length > 0, s.key);
