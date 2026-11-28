@@ -133,3 +133,11 @@ test('los accesos de mutación más visibles declaran su capacidad exacta', () =
   assert.match(licenses, /href="centro-acciones\.html" data-requires-any-capability="leave\.request\.self\.create leave\.request\.area\.create leave\.request\.all\.manage">Nueva solicitud/);
   assert.match(sources, /id="createButton"[^>]+data-requires-any-capability="time\.source\.propose"/);
 });
+
+test('work session heartbeat: one tab pings every ten minutes while the person used the computer in the last two hours', async () => {
+  const fs = await import('node:fs');
+  const src = fs.readFileSync(new URL('../assets/internal-capability-gate.js', import.meta.url), 'utf8');
+  assert.match(src, /EVERY = 10 \* 60 \* 1000, IDLE_LIMIT = 2 \* 60 \* 60 \* 1000/);
+  assert.match(src, /mc-session-heartbeat-at/);
+  assert.match(src, /global\.fetch\(AUTH_URL, \{ credentials: 'same-origin', cache: 'no-store'/);
+});

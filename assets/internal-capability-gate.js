@@ -227,4 +227,24 @@
     ready: start()
   });
   global.MuniControlCapabilityGate = api;
+
+  // Sesión de trabajo: el servidor da por terminada una sesión sin pedidos durante una hora. Quien deja MuniControl
+  // abierto mientras atiende otra cosa (otra ventana, una llamada, el almuerzo) no tiene que volver a ingresar: mientras
+  // haya una pestaña abierta y la persona haya usado la computadora en las últimas dos horas, cada diez minutos se avisa
+  // al servidor que la sesión sigue en uso. Una sola pestaña avisa por vez. El límite total de la sesión no cambia, y
+  // después de dos horas sin tocar nada la sesión vence como siempre.
+  (function keepWorkSession() {
+    if (!global.document || !global.fetch || !global.setInterval) return;
+    var EVERY = 10 * 60 * 1000, IDLE_LIMIT = 2 * 60 * 60 * 1000, KEY = 'mc-session-heartbeat-at', lastActivity = Date.now();
+    var touch = function () { lastActivity = Date.now(); };
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (name) { global.addEventListener(name, touch, { passive: true, capture: true }); });
+    global.document.addEventListener('visibilitychange', function () { if (global.document.visibilityState === 'visible') touch(); });
+    function recently() { try { return Date.now() - Number(global.localStorage.getItem(KEY) || 0) < EVERY - 30000; } catch (e) { return false; } }
+    function beat() {
+      if (Date.now() - lastActivity > IDLE_LIMIT || recently()) return;
+      try { global.localStorage.setItem(KEY, String(Date.now())); } catch (e) { /* sin memoria: avisa igual */ }
+      global.fetch(AUTH_URL, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).catch(function () { /* sin red: se reintenta en el próximo turno */ });
+    }
+    global.setInterval(beat, EVERY);
+  })();
 })(typeof window === 'undefined' ? globalThis : window);
