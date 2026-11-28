@@ -149,7 +149,7 @@ export function mountBatchCalc(host) {
     + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-confirm-go disabled></button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-confirm-status></p></div></li>'
     + '<li data-bc-undo hidden><h4 data-bc-undo-title>Buscar lo calculado</h4><p data-bc-undo-help></p>'
     + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-find>Buscar lo calculado</button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-undo-status></p>'
-    + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Escribí el motivo (mínimo 10 letras)"></textarea></label>'
+    + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Se completa solo al buscar; podés agregar algo"></textarea></label>'
     + '<label class="mc-batch-check"><input type="checkbox" data-bc-undo-reviewed> Revisé a quiénes alcanza</label>'
     + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button><button type="button" class="button primary" data-bc-undo-close disabled></button></div></div></li>'
     + '</ol>';
@@ -363,6 +363,13 @@ export function mountBatchCalc(host) {
         $('undo-status').textContent = 'Leyendo las corridas del mes: ' + (index + 1) + ' de ' + runs.length + '. Encontradas ' + seen.size + ' de ' + wanted.size + ' personas…';
       });
       undo = { targets };
+      // El motivo viene escrito: se toca sólo para agregar algo. Queda registrado con la decisión.
+      const sum = command => targets.filter(t => command(t.command)).reduce((n, t) => n + t.contractIds.length, 0);
+      const people = mode === 'confirm' ? sum(c => c === 'confirm') : mode === 'close' ? sum(c => c === 'annul') : sum(c => c !== 'confirm');
+      if (people && !$('undo-reason').value.trim()) {
+        const what = batchCalcType(wantedPlan.liquidationType).label.toLowerCase() + ' de ' + monthName(wantedPlan.period) + ' de ' + wantedPlan.agreement + ': ' + people + (people === 1 ? ' persona' : ' personas');
+        $('undo-reason').value = (mode === 'confirm' ? 'Confirmación de la liquidación ' + what + ', revisada.' : mode === 'close' ? 'Cierre de la liquidación ' + what + ' confirmadas.' : 'Anulación de la liquidación ' + what + ', para corregir y volver a calcular.').slice(0, 500);
+      }
       $('undo-status').textContent = (confirmed + calculated ? 'En ' + wantedPlan.period + ': ' + confirmed + ' confirmadas y ' + calculated + ' calculadas sin confirmar.' : 'No hay nada calculado vigente para esas personas en ' + wantedPlan.period + '.')
         + (own ? ' ' + own + ' las calculaste vos: las confirma otra persona, o las podés anular.' : '') + (blocked ? ' ' + blocked + ' no admiten cambios con tu cuenta o ya están cerradas.' : '');
     } catch (e) { undo = null; $('undo-status').textContent = e.message; } finally { busy = false; controls(); }

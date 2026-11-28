@@ -102,7 +102,7 @@ try {
   // Corregir a dos personas: anular solo a ellas, recalcularlas y que las confirme otra persona.
   await paste('only', '1010, 1020'); assert.equal(await page.locator('.mc-batch-item').count(), 0);
   assert.equal(await $('undo').isHidden(), true); await page.locator('[data-bc-mode=annul]').click(); assert.equal(await $('calc-step').isHidden(), true); assert.equal(await $('excluded-label').isHidden(), true); assert.match(await $('who-title').innerText(), /A quiénes anular/); await $('undo-find').click(); await page.waitForFunction(() => /2 confirmadas y 0 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
-  assert.ok(await $('undo-go').isDisabled()); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(await $('undo-reason').inputValue(), ''); assert.equal(decisions.length, 5);
+  assert.ok(await $('undo-go').isDisabled()); assert.equal(await $('undo-confirm').isHidden(), true); assert.match(await $('undo-reason').inputValue(), /^Anulación de la liquidación mensual de noviembre de 2026 de CONVENIO SINTÉTICO GRANDE: 2 personas/); assert.equal(decisions.length, 5); checks.push('the reason comes already written from what was found, and can be edited');
   checks.push('the three tasks are separate: Anular shows only who and why, without the calculation steps');
   checks.push('searching what is already calculated reads the newest runs first, decides nothing and never proposes an annulment reason');
   await $('undo-reason').fill('Se corrige el presentismo de dos personas'); await $('undo-reviewed').check(); assert.match(await $('undo-go').innerText(), /Anular 2 personas/); await $('undo-go').click();
