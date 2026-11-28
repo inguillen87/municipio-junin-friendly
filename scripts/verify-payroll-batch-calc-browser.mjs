@@ -49,7 +49,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(origin + '/'); const $ = n => page.locator('[data-bc-' + n + ']');
   assert.equal(posts.length, 0); assert.ok(await $('plan').isDisabled()); checks.push('opening the screen reads and calculates nothing');
-  await $('period').fill('2026-11'); await $('load').click(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').options.length === 3);
+  assert.equal(await $('load').isHidden(), true); assert.equal(posts.length, 0); await $('period').fill('2026-11'); await $('agreement').focus(); await page.waitForFunction(() => document.querySelector('[data-bc-agreement]').options.length === 3);
   await $('agreement').selectOption('CONVENIO SINTÉTICO GRANDE'); await $('excluded').fill('1001, 1005\n7777 x9'); await $('plan').click();
   assert.equal(await page.locator('.mc-batch-item').count(), 4); assert.match(await $('status').innerText(), /290 personas en 4 tandas/);
   const notes = await $('notes').innerText(); assert.match(notes, /No se liquidan este mes: 1001, 1005/); assert.match(notes, /7777/); assert.match(notes, /x9/); assert.equal(posts.length, 0);
@@ -76,19 +76,20 @@ try {
   assert.ok(await $('confirm-go').isDisabled()); assert.equal(await page.locator('.mc-batch-item small', { hasText: 'Confirmada' }).count(), 4); checks.push('every batch is confirmed once, with its own result fingerprint and the same reason');
   // Corregir a dos personas: anular solo a ellas, recalcularlas y que las confirme otra persona.
   await $('only').fill('1010, 1020'); assert.equal(await page.locator('.mc-batch-item').count(), 0);
-  await page.locator('[data-bc-undo] > summary').click(); await $('undo-find').click(); await page.waitForFunction(() => /2 confirmadas y 0 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  assert.equal(await $('undo').isHidden(), true); await page.locator('[data-bc-mode=annul]').click(); assert.equal(await $('calc-step').isHidden(), true); assert.equal(await $('excluded-label').isHidden(), true); assert.match(await $('who-title').innerText(), /A quiénes anular/); await $('undo-find').click(); await page.waitForFunction(() => /2 confirmadas y 0 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.ok(await $('undo-go').isDisabled()); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(await $('undo-reason').inputValue(), ''); assert.equal(decisions.length, 5);
+  checks.push('the three tasks are separate: Anular shows only who and why, without the calculation steps');
   checks.push('searching what is already calculated reads the newest runs first, decides nothing and never proposes an annulment reason');
   await $('undo-reason').fill('Se corrige el presentismo de dos personas'); await $('undo-reviewed').check(); assert.match(await $('undo-go').innerText(), /Anular 2 personas/); await $('undo-go').click();
   await page.waitForFunction(() => /2 personas anuladas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   const annulled = decisions.slice(5); assert.ok(annulled.length >= 1 && annulled.every(d => d.body.payload.command === 'annul' && d.body.payload.selection.kind === 'contracts'));
   assert.deepEqual(annulled.flatMap(d => d.body.payload.selection.values).sort(), [id(11), id(21)]); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 288);
   checks.push('only the two listed people are annulled; the other 288 stay confirmed');
-  selfConfirm = false; await $('plan').click(); assert.match(await $('status').innerText(), /2 personas en 1 tanda/); await $('run').click(); await $('confirm').waitFor();
+  selfConfirm = false; await page.locator('[data-bc-mode=calc]').click(); await $('plan').click(); assert.match(await $('status').innerText(), /2 personas en 1 tanda/); await $('run').click(); await $('confirm').waitFor();
   assert.deepEqual(posts.at(-1).body.payload.selection.values, [id(11), id(21)]); await $('reviewed').check(); const before = decisions.length; await $('confirm-go').click();
   await page.waitForFunction(() => /la tiene que confirmar otra persona/.test(document.querySelector('[data-bc-confirm-status]').textContent)); assert.equal(decisions.length, before);
   checks.push('whoever calculated is told up front that another person confirms, and nothing is sent');
-  viewer = 'beto'; await $('undo-find').click(); await page.waitForFunction(() => /0 confirmadas y 2 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  viewer = 'beto'; await page.locator('[data-bc-mode=confirm]').click(); assert.equal(await $('undo-go').isHidden(), true); await $('undo-find').click(); await page.waitForFunction(() => /0 confirmadas y 2 calculadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   await $('undo-reason').fill('Totales revisados contra la planilla'); await $('undo-reviewed').check(); assert.match(await $('undo-confirm').innerText(), /Confirmar 2 personas/); assert.equal(await $('undo-go').isHidden(), true); await $('undo-confirm').click();
   await page.waitForFunction(() => /2 personas confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.equal(decisions.at(-1).body.payload.command, 'confirm'); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 290);
@@ -102,7 +103,7 @@ try {
   }
   checks.push('fits 1440, 390 and 320 px with 44 px controls');
   assert.deepEqual(await page.evaluate(() => [Object.keys(localStorage).length, Object.keys(sessionStorage).length]), [0, 0]); assert.deepEqual(errors, []); checks.push('no browser storage and no page errors');
-  await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); await $('type').selectOption('vacation'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); await $('run').click(); await $('confirm').waitFor(); assert.equal(posts.at(-1).body.payload.liquidationType, 'vacation'); assert.match(await $('reason').inputValue(), /^Segunda liquidación 2026-11 de CONVENIO SINTÉTICO CHICO: 12 personas/); checks.push('changing the request discards the previous plan; a small agreement is a single batch; the second liquidation is calculated with its own type');
+  await page.locator('[data-bc-mode=calc]').click(); await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); await $('type').selectOption('vacation'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); await $('run').click(); await $('confirm').waitFor(); assert.equal(posts.at(-1).body.payload.liquidationType, 'vacation'); assert.match(await $('reason').inputValue(), /^Segunda liquidación 2026-11 de CONVENIO SINTÉTICO CHICO: 12 personas/); checks.push('changing the request discards the previous plan; a small agreement is a single batch; the second liquidation is calculated with its own type');
   fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
   console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
 } finally { await browser.close(); server.close(); }

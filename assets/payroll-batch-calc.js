@@ -77,35 +77,46 @@ export function mountBatchCalc(host) {
   const href = new URL('payroll-batch-calc.css', import.meta.url).href;
   if (![...document.querySelectorAll('link[rel=stylesheet]')].some(l => l.href === href)) { const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = href; document.head.append(link); }
   host.className = 'mc-batch-calc';
-  host.innerHTML = '<header><h3>Calcular un convenio completo</h3><p>Los convenios grandes se calculan en tandas, una detrás de otra. Elegí el mes y el convenio; las personas que este mes no se liquidan quedan afuera.</p></header>'
-    + '<div class="mc-batch-form"><label>Mes <input type="month" data-bc-period></label>'
+  // Tres tareas, una por vez: elegís qué hacer y la tarjeta muestra sólo los pasos de esa tarea.
+  host.innerHTML = '<header><h3>Liquidar un convenio</h3><p>Elegí qué querés hacer. Cada tarea muestra sólo sus pasos, en orden.</p></header>'
+    + '<div class="mc-batch-modes" role="tablist" aria-label="Qué querés hacer">'
+    + '<button type="button" role="tab" data-bc-mode="calc" aria-selected="true"><b>Calcular</b><small>Liquidar un convenio o a algunas personas</small></button>'
+    + '<button type="button" role="tab" data-bc-mode="confirm" aria-selected="false"><b>Confirmar</b><small>Dar por buena una liquidación ya calculada</small></button>'
+    + '<button type="button" role="tab" data-bc-mode="annul" aria-selected="false"><b>Anular</b><small>Deshacer una liquidación para corregirla</small></button></div>'
+    + '<ol class="mc-batch-steps">'
+    + '<li><h4>Qué mes y qué convenio</h4><div class="mc-batch-form"><label>Mes <input type="month" data-bc-period></label>'
     + '<label>Tipo <select data-bc-type>' + BATCH_CALC_TYPES.map(t => '<option value="' + t.value + '">' + t.label + '</option>').join('') + '</select></label>'
-    + '<label>Convenio <select data-bc-agreement disabled><option value="">Tocá «Traer convenios»</option></select></label>'
-    + '<div class="mc-batch-actions" style="margin:0"><button type="button" class="button secondary" data-bc-load>Traer convenios</button></div>'
-    + '<label class="mc-batch-wide">No liquidar este mes <small>Legajos separados por coma o renglón. Quedan fuera de todas las tandas.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label>'
-    + '<label class="mc-batch-wide">Solo estos legajos (opcional) <small>Para corregir a pocas personas sin tocar al resto del convenio. Vacío: todo el convenio.</small><textarea data-bc-only rows="2" inputmode="numeric" placeholder="Ejemplo: 1017, 1922, 2083"></textarea></label></div>'
-    + '<div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-plan disabled>Armar tandas</button><button type="button" class="button primary" data-bc-run hidden></button></div>'
+    + '<label class="mc-batch-agreement">Convenio <select data-bc-agreement><option value="">Tocá acá para ver los convenios</option></select></label>'
+    + '<div class="mc-batch-actions mc-batch-reload" style="margin:0"><button type="button" class="button secondary" data-bc-load>Volver a traer</button></div></div></li>'
+    + '<li><h4 data-bc-who-title>Quiénes</h4><div class="mc-batch-form">'
+    + '<label class="mc-batch-wide" data-bc-only-label>Solo estos legajos <small data-bc-only-help>Opcional. Vacío: todo el convenio.</small><textarea data-bc-only rows="2" inputmode="numeric" placeholder="Ejemplo: 1017, 1922, 2083"></textarea></label>'
+    + '<label class="mc-batch-wide" data-bc-excluded-label>No liquidar este mes <small>Legajos que este mes quedan afuera, separados por coma o renglón.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label></div></li>'
+    + '<li data-bc-calc-step><h4>Calcular</h4><div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-plan disabled>Armar tandas</button><button type="button" class="button primary" data-bc-run hidden></button></div>'
     + '<p class="mc-batch-status" role="status" aria-live="polite" data-bc-status></p><ul class="mc-batch-notes" data-bc-notes></ul>'
     + '<div data-bc-progress hidden><div class="mc-batch-bar" data-bc-bar role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Avance del cálculo"><span></span></div><p class="mc-batch-count" data-bc-count></p></div>'
     + '<ol class="mc-batch-list" data-bc-list></ol><dl class="mc-batch-total" data-bc-total hidden></dl>'
-    + '<details class="mc-batch-undo" data-bc-undo hidden><summary>Confirmar o anular lo ya calculado de este convenio</summary><p>Busca lo que está calculado en el mes para estas personas, lo haya calculado quien sea, y lo confirma o lo anula todo junto. No borra nada: queda registrado quién decidió y por qué.</p>'
-    + '<div class="mc-batch-actions"><button type="button" class="button secondary" data-bc-undo-find>Buscar lo calculado</button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-undo-status></p>'
-    + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Escribí el motivo de la decisión (mínimo 10 letras)"></textarea></label>'
-    + '<label class="mc-batch-check"><input type="checkbox" data-bc-undo-reviewed> Revisé a quiénes alcanza</label>'
-    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button></div></div></details>'
     + '<div class="mc-batch-confirm" data-bc-confirm hidden><h4>Confirmar el convenio</h4><p>Confirma todas las tandas con un mismo motivo. Queda registrado quién confirmó y cuándo; se puede anular después.</p>'
     + '<label>Motivo de la confirmación <textarea data-bc-reason rows="2" maxlength="500"></textarea></label>'
     + '<label class="mc-batch-check"><input type="checkbox" data-bc-reviewed> Revisé las personas y los totales del convenio</label>'
-    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-confirm-go disabled></button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-confirm-status></p></div>';
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-confirm-go disabled></button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-confirm-status></p></div></li>'
+    + '<li data-bc-undo hidden><h4 data-bc-undo-title>Buscar lo calculado</h4><p data-bc-undo-help></p>'
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-find>Buscar lo calculado</button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-undo-status></p>'
+    + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Escribí el motivo (mínimo 10 letras)"></textarea></label>'
+    + '<label class="mc-batch-check"><input type="checkbox" data-bc-undo-reviewed> Revisé a quiénes alcanza</label>'
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button></div></div></li>'
+    + '</ol>';
   const $ = name => host.querySelector('[data-bc-' + name + ']');
   const now = new Date(); $('period').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  let rows = null, plan = null, state = [], busy = false, boot = null, undo = null;
+  let rows = null, plan = null, state = [], busy = false, boot = null, undo = null, mode = 'calc';
   const status = text => { $('status').textContent = text; };
   const controls = () => {
-    $('load').disabled = busy; $('agreement').disabled = busy || !rows; $('period').disabled = busy; $('type').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
-    $('undo').hidden = !rows || !$('agreement').value; $('undo-find').disabled = busy;
+    $('load').disabled = busy; $('load').hidden = !rows; $('agreement').disabled = busy; $('period').disabled = busy; $('type').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
+    $('undo').hidden = mode === 'calc'; $('calc-step').hidden = mode !== 'calc'; $('excluded-label').hidden = mode !== 'calc';
+    $('undo-find').disabled = busy || !rows || !$('agreement').value;
+    for (const tab of host.querySelectorAll('[data-bc-mode]')) { tab.setAttribute('aria-selected', String(tab.dataset.bcMode === mode)); tab.disabled = busy && tab.dataset.bcMode !== mode; }
     const count = kind => (undo ? undo.targets.filter(t => kind === 'confirm' ? t.command === 'confirm' : t.command !== 'confirm').reduce((n, t) => n + t.contractIds.length, 0) : 0), people = count('undo'), toConfirm = count('confirm'), ready = !busy && $('undo-reviewed').checked && $('undo-reason').value.trim().length >= 10;
-    $('undo-form').hidden = !people && !toConfirm; $('undo-go').hidden = !people; $('undo-confirm').hidden = !toConfirm;
+    const shown = mode === 'annul' ? people : toConfirm;
+    $('undo-form').hidden = !shown; $('undo-go').hidden = mode !== 'annul' || !people; $('undo-confirm').hidden = mode !== 'confirm' || !toConfirm;
     $('undo-go').textContent = 'Anular ' + people + (people === 1 ? ' persona' : ' personas'); $('undo-confirm').textContent = 'Confirmar ' + toConfirm + (toConfirm === 1 ? ' persona' : ' personas');
     $('undo-go').disabled = !ready || !people; $('undo-confirm').disabled = !ready || !toConfirm; $('undo-reason').disabled = busy; $('undo-reviewed').disabled = busy;
     $('plan').disabled = busy || !rows || !$('agreement').value;
@@ -167,7 +178,7 @@ export function mountBatchCalc(host) {
       const options = batchCalcAgreements(rows), select = $('agreement'), keep = select.value;
       select.replaceChildren(node('option', options.length ? 'Elegí un convenio' : 'No hay contratos activos'), ...options.map(o => { const option = node('option', o.agreement + ' · ' + o.people + (o.people === 1 ? ' persona' : ' personas')); option.value = o.agreement; return option; }));
       select.firstChild.value = ''; if (options.some(o => o.agreement === keep)) select.value = keep;
-      status(options.length ? 'Elegí el convenio y tocá «Armar tandas».' : 'El padrón propio no tiene contratos activos.');
+      status(options.length ? 'Elegí el convenio.' : 'El padrón propio no tiene contratos activos.');
     } catch (e) { rows = null; status(e.message); } finally { busy = false; controls(); }
   }
   function arrange() {
@@ -211,7 +222,7 @@ export function mountBatchCalc(host) {
   async function findUndo() {
     if (busy || !rows) return; busy = true; forgetUndo(); controls();
     try {
-      const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, excluded: batchCalcLegajos($('excluded').value).valid, only: batchCalcLegajos($('only').value).valid });
+      const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, only: batchCalcLegajos($('only').value).valid });
       const wanted = new Set(wantedPlan.batches.flatMap(b => b.contractIds)), seen = new Set(), targets = []; let blocked = 0, confirmed = 0, calculated = 0, own = 0;
       if (!wanted.size) { $('undo-status').textContent = 'No hay personas de ese convenio para buscar.'; return; }
       const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period, wantedPlan.liquidationType);
@@ -237,7 +248,7 @@ export function mountBatchCalc(host) {
         catch (e) { const done = new Set(mine.slice(0, index)); undo = { targets: undo.targets.filter(t => !done.has(t)) }; $('undo-status').textContent = 'Se ' + verb[1] + ' ' + people + ' personas y después falló: ' + e.message + ' Tocá el botón otra vez para seguir.'; return; }
       }
       undo = null; $('undo-reason').value = ''; $('undo-reviewed').checked = false;
-      $('undo-status').textContent = 'Listo: ' + people + ' ' + (people === 1 ? 'persona ' + verb[2] : 'personas ' + verb[3]) + '.' + (kind === 'confirm' ? '' : ' Ya se pueden volver a calcular con «Armar tandas».');
+      $('undo-status').textContent = 'Listo: ' + people + ' ' + (people === 1 ? 'persona ' + verb[2] : 'personas ' + verb[3]) + '.' + (kind === 'confirm' ? '' : ' Para corregirlas, volvé a «Calcular».');
       document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
     } finally { busy = false; controls(); }
   }
@@ -247,6 +258,22 @@ export function mountBatchCalc(host) {
   for (const name of ['agreement', 'period', 'type', 'excluded', 'only']) $(name).addEventListener('input', () => { if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
   // Una decisión en curso no se corta por cerrar la pestaña sin querer.
   addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
-  status('Tocá «Traer convenios» para empezar.'); controls();
-  return { load, arrange, run };
+  // El padrón se trae al primer toque sobre la lista de convenios: nada se lee al abrir la pantalla.
+  const firstLoad = () => { if (!rows && !busy) load(); };
+  $('agreement').addEventListener('pointerdown', firstLoad); $('agreement').addEventListener('focus', firstLoad);
+  const HELP = {
+    calc: ['Quiénes', 'Opcional. Vacío: todo el convenio.'],
+    confirm: ['A quiénes confirmar', 'Opcional. Vacío: todo lo calculado del convenio en ese mes.'],
+    annul: ['A quiénes anular', 'Opcional. Vacío: todo el convenio en ese mes. Para una sola persona, escribí su legajo.'],
+  };
+  function setMode(next) {
+    if (busy || next === mode) return; mode = next; forgetUndo();
+    $('who-title').textContent = HELP[mode][0]; $('only-help').textContent = HELP[mode][1];
+    $('undo-title').textContent = mode === 'confirm' ? 'Buscar lo calculado y confirmarlo' : 'Buscar lo calculado y anularlo';
+    $('undo-help').textContent = mode === 'confirm' ? 'Busca lo calculado sin confirmar, lo haya calculado quien sea. Después lo confirmás todo junto con un motivo.' : 'Busca lo confirmado o calculado del mes para esas personas. Después lo anulás todo junto con un motivo. No se borra nada: queda registrado quién anuló y por qué.';
+    status(''); controls();
+  }
+  for (const tab of host.querySelectorAll('[data-bc-mode]')) tab.addEventListener('click', () => setMode(tab.dataset.bcMode));
+  status('Elegí el mes y el convenio.'); controls();
+  return { load, arrange, run, setMode };
 }
