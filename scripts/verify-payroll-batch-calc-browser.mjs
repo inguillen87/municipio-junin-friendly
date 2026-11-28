@@ -102,7 +102,7 @@ try {
   }
   checks.push('fits 1440, 390 and 320 px with 44 px controls');
   assert.deepEqual(await page.evaluate(() => [Object.keys(localStorage).length, Object.keys(sessionStorage).length]), [0, 0]); assert.deepEqual(errors, []); checks.push('no browser storage and no page errors');
-  await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); checks.push('changing the request discards the previous plan; a small agreement is a single batch');
+  await $('only').fill(''); await $('agreement').selectOption('CONVENIO SINTÉTICO CHICO'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); assert.equal(await page.locator('.mc-batch-item').count(), 1); await $('type').selectOption('vacation'); assert.equal(await page.locator('.mc-batch-item').count(), 0); await $('plan').click(); await $('run').click(); await $('confirm').waitFor(); assert.equal(posts.at(-1).body.payload.liquidationType, 'vacation'); assert.match(await $('reason').inputValue(), /^Segunda liquidación 2026-11 de CONVENIO SINTÉTICO CHICO: 12 personas/); checks.push('changing the request discards the previous plan; a small agreement is a single batch; the second liquidation is calculated with its own type');
   fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify({ ok: true, checksPassed: checks.length, checks, syntheticPosts: posts.length, realApiCalls: 0 }, null, 2) + '\n');
   console.log(JSON.stringify({ ok: true, checksPassed: checks.length }));
 } finally { await browser.close(); server.close(); }

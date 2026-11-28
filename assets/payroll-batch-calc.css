@@ -1,7 +1,7 @@
 /* Cálculo de un convenio completo en tandas. Sólo se anima aparición y desplazamiento, nunca el tamaño de las cosas. */
 .mc-batch-calc{border:1px solid #e4ece9;border-radius:12px;padding:16px;background:#fff;margin:0 0 16px;min-width:0}
 .mc-batch-calc header h3{margin:0 0 4px;letter-spacing:-.01em}.mc-batch-calc header p{margin:0 0 12px;color:#5b6673;max-width:68ch}
-.mc-batch-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
+.mc-batch-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
 .mc-batch-form label{display:grid;gap:4px;font-weight:600;min-width:0}.mc-batch-form label small{font-weight:400;color:#5b6673}
 .mc-batch-form :is(input,select,textarea){box-sizing:border-box;width:100%;min-width:0;min-height:44px;font:inherit}
 .mc-batch-form textarea{min-height:72px;resize:vertical}.mc-batch-wide{grid-column:1/-1}

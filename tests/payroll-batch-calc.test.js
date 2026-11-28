@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { BATCH_CALC_SIZE, batchCalcAgreements, batchCalcLegajos, batchCalcLiquidationDate, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcUndoRuns, batchCalcUndoScan } from '../assets/payroll-batch-calc-model.js';
+import { BATCH_CALC_SIZE, batchCalcAgreements, batchCalcLegajos, batchCalcLiquidationDate, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan } from '../assets/payroll-batch-calc-model.js';
 
 const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const roster = (n, extra = {}) => Array.from({ length: n }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'PERSONAL INTERINO', status: 'active', startDate: '2020-01-01', ...extra }));
@@ -93,4 +93,13 @@ test('the newest run that holds a person decides what can be done with them', ()
   ], wanted, seen);
   assert.deepEqual(older, { confirm: [], annul: [], cancel: [], blocked: [id(5)], confirmed: 1, calculated: 0 });
   assert.equal(seen.size, 5);
+});
+
+test('the liquidation type travels with the plan and only known types are offered', () => {
+  assert.equal(batchCalcPlan(roster(5), { agreement: 'PERSONAL INTERINO', period: '2026-11' }).liquidationType, 'monthly');
+  assert.equal(batchCalcPlan(roster(5), { agreement: 'PERSONAL INTERINO', period: '2026-11', liquidationType: 'vacation' }).liquidationType, 'vacation');
+  assert.throws(() => batchCalcPlan(roster(5), { agreement: 'PERSONAL INTERINO', period: '2026-11', liquidationType: 'bonus' }), /tipo de liquidación/);
+  assert.equal(batchCalcType('vacation').reason, 'Segunda liquidación'); assert.equal(batchCalcType('x').value, 'monthly');
+  const runs = [{ id: 'm', period: '2026-11', liquidationType: 'monthly', createdAt: '2026-11-27T10:00:00Z' }, { id: 'v', period: '2026-11', liquidationType: 'vacation', createdAt: '2026-11-27T11:00:00Z' }];
+  assert.deepEqual(batchCalcUndoRuns(runs, '2026-11', 'vacation').map(r => r.id), ['v']); assert.deepEqual(batchCalcUndoRuns(runs, '2026-11').map(r => r.id), ['m']);
 });

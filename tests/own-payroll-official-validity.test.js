@@ -5,7 +5,7 @@ import {salarySerialized} from '../assets/native-salary-catalog-model.js';
 import {policyBoundaryMonths,policyCanonicalText,policySha256} from '../assets/own-payroll-policy-validity.js';
 import {OWN_PAYROLL_OFFICIAL_TOTALS_VERSION as V1,OWN_PAYROLL_OFFICIAL_TOTALS_V2_VERSION as V2,normalizeOfficialTotalsPolicy,normalizeOfficialTotalsPolicies,normalizeOfficialTotalsCapture,normalizeOfficialTotalsEvidence,normalizeOwnPayrollOfficialInput,officialTotalsPolicyId,officialTotalsPolicySha256,officialTotalsPoliciesSha256,resolveOfficialTotalsPolicies} from '../assets/own-payroll-official-totals.js';
 import {normalizeOfficialTotalsProgram,officialTotalsProgramHistory,selectOfficialTotalsPolicy,captureOfficialTotalsPolicy} from '../assets/own-payroll-official-program.js';
-import {ownProgramDefinition} from '../assets/own-payroll-program-model.js';
+import {ownProgramDefinition,ownProgramRuleKey} from '../assets/own-payroll-program-model.js';
 import {ownOfficialCapture,verifiedOwnOfficialCapture,buildOwnOfficialCloseSnapshot,ownOfficialCloseSnapshot,verifiedOwnOfficialCloseSnapshot} from '../assets/own-payroll-official-snapshot-model.js';
 import {ownReceiptRecord} from '../assets/own-payroll-receipt-model.js';
 import {ownRunOperation,verifyOwnRunReceipt,RUN_CALCULATE} from '../lib/internal-own-payroll-run.js';
@@ -180,4 +180,20 @@ test('a temporal totals policy may belong to another liquidation type, and an un
  assert.equal(normalizeOfficialTotalsPolicy(sibling).liquidationType,'vacation');
  assert.throws(()=>normalizeOfficialTotalsPolicy({...clone(monthly),liquidationType:'bonus'}),code('POLICY_SCOPE_INVALID'));
  assert.equal(normalizeOfficialTotalsPolicies([monthly,sibling],V2).length,2,'one lineage per agreement and liquidation type');
+});
+
+test('a second liquidation type (GRH type V, bonus) calculates, closes and issues receipts like the monthly one',async()=>{
+ const monthly=officialValidityCapture(temporalOfficialSources({period:'2027-08',emission:false,tariffs:false}));
+ const source=temporalOfficialSources({period:'2027-08',emission:false,tariffs:false}),d=source.programState.program.definition,keys=new Map();
+ for(const r of d.rules){const before=ownProgramRuleKey(r,d.namespaceVersion);r.liquidationTypes=['vacation'];keys.set(before,ownProgramRuleKey(r,d.namespaceVersion));}
+ for(const q of d.quantityPhases??[])q.liquidationTypes=['vacation'];for(const p of d.officialTotalsPolicies)p.liquidationType='vacation';
+ for(const t of d.periodParticipation?.treatments??[])t.ruleKey=keys.get(t.ruleKey)??t.ruleKey;source.liquidationType='vacation';
+ const c=officialValidityCapture(sealTemporalSources(source));
+ assert.equal(c.body.liquidationType,'vacation');assert.equal(c.saved.input.officialTotalsCapture.liquidationType,'vacation');
+ assert.deepEqual(c.saved.result.employeeTotals,monthly.saved.result.employeeTotals,'same rules give the same amounts whatever the type');
+ await verifiedOwnOfficialCapture(c);verifyOwnRunReceipt(c);
+ const s=close(c);await verifiedOwnOfficialCloseSnapshot(s);assert.equal(s.liquidationType,'vacation');
+ ownReceiptRecord(temporalReceiptEvidence(c,s).record);
+ // The monthly lineage does not serve the bonus and the other way round.
+ assert.throws(()=>officialValidityCapture(sealTemporalSources({...structuredClone(source),liquidationType:'monthly'})));
 });

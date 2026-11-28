@@ -3,7 +3,7 @@
 // referencia de intento, igual que una corrida hecha desde «Calcular».
 import { OWN_RUN_COMMAND_VERSION, ownRunCommand } from './own-payroll-run-model.js';
 import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
-import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcUndoRuns, batchCalcUndoScan } from './payroll-batch-calc-model.js';
+import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
 import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
 
@@ -19,7 +19,7 @@ const rosterRows = data => (Array.isArray(data?.rows) ? data.rows : Object.value
 // Una corrida: devuelve los totales de sus personas. Si la respuesta se pierde, consulta el mismo intento antes de
 // permitir otro envío, para no calcular dos veces.
 async function calculate(batch, plan, boot, key) {
-  const body = ownRunCommand({ version: OWN_RUN_COMMAND_VERSION, liquidationDate: plan.liquidationDate, period: plan.period, liquidationType: 'monthly', selection: { kind: 'contracts', values: batch.contractIds }, scopeVersion: boot.scopeVersion, programVersion: boot.programVersion, populationDomain: 'native_registered' });
+  const body = ownRunCommand({ version: OWN_RUN_COMMAND_VERSION, liquidationDate: plan.liquidationDate, period: plan.period, liquidationType: plan.liquidationType, selection: { kind: 'contracts', values: batch.contractIds }, scopeVersion: boot.scopeVersion, programVersion: boot.programVersion, populationDomain: 'native_registered' });
   const read = async response => {
     let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
     if (response.ok && value?.ok === true) {
@@ -79,6 +79,7 @@ export function mountBatchCalc(host) {
   host.className = 'mc-batch-calc';
   host.innerHTML = '<header><h3>Calcular un convenio completo</h3><p>Los convenios grandes se calculan en tandas, una detrás de otra. Elegí el mes y el convenio; las personas que este mes no se liquidan quedan afuera.</p></header>'
     + '<div class="mc-batch-form"><label>Mes <input type="month" data-bc-period></label>'
+    + '<label>Tipo <select data-bc-type>' + BATCH_CALC_TYPES.map(t => '<option value="' + t.value + '">' + t.label + '</option>').join('') + '</select></label>'
     + '<label>Convenio <select data-bc-agreement disabled><option value="">Tocá «Traer convenios»</option></select></label>'
     + '<div class="mc-batch-actions" style="margin:0"><button type="button" class="button secondary" data-bc-load>Traer convenios</button></div>'
     + '<label class="mc-batch-wide">No liquidar este mes <small>Legajos separados por coma o renglón. Quedan fuera de todas las tandas.</small><textarea data-bc-excluded rows="2" inputmode="numeric" placeholder="Ejemplo: 1177, 1188, 1256"></textarea></label>'
@@ -101,7 +102,7 @@ export function mountBatchCalc(host) {
   let rows = null, plan = null, state = [], busy = false, boot = null, undo = null;
   const status = text => { $('status').textContent = text; };
   const controls = () => {
-    $('load').disabled = busy; $('agreement').disabled = busy || !rows; $('period').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
+    $('load').disabled = busy; $('agreement').disabled = busy || !rows; $('period').disabled = busy; $('type').disabled = busy; $('excluded').disabled = busy; $('only').disabled = busy;
     $('undo').hidden = !rows || !$('agreement').value; $('undo-find').disabled = busy;
     const count = kind => (undo ? undo.targets.filter(t => kind === 'confirm' ? t.command === 'confirm' : t.command !== 'confirm').reduce((n, t) => n + t.contractIds.length, 0) : 0), people = count('undo'), toConfirm = count('confirm'), ready = !busy && $('undo-reviewed').checked && $('undo-reason').value.trim().length >= 10;
     $('undo-form').hidden = !people && !toConfirm; $('undo-go').hidden = !people; $('undo-confirm').hidden = !toConfirm;
@@ -138,7 +139,7 @@ export function mountBatchCalc(host) {
     const canConfirm = allDone && done.every(s => s.totals.runId && s.totals.resultSha256);
     $('confirm').hidden = !canConfirm;
     if (canConfirm) {
-      if (!$('reason').dataset.proposed) { const sum = batchCalcSum(done.map(s => s.totals)); $('reason').value = 'Liquidación mensual ' + plan.period + ' de ' + plan.agreement + ': ' + sum.people + ' personas, neto ' + batchCalcMoney(sum.net).replace('\u00a0', ' ') + '. Totales revisados.'; $('reason').dataset.proposed = '1'; }
+      if (!$('reason').dataset.proposed) { const sum = batchCalcSum(done.map(s => s.totals)); $('reason').value = batchCalcType(plan.liquidationType).reason + ' ' + plan.period + ' de ' + plan.agreement + ': ' + sum.people + ' personas, neto ' + batchCalcMoney(sum.net).replace('\u00a0', ' ') + '. Totales revisados.'; $('reason').dataset.proposed = '1'; }
       $('confirm-go').textContent = left ? 'Confirmar ' + left + (left === 1 ? ' tanda' : ' tandas') : 'Convenio confirmado';
       $('confirm-go').disabled = busy || !left || !$('reviewed').checked || $('reason').value.trim().length < 10;
       $('reason').disabled = busy || !left; $('reviewed').disabled = busy || !left;
@@ -174,7 +175,7 @@ export function mountBatchCalc(host) {
     try {
       const typed = batchCalcLegajos($('excluded').value);
       const just = batchCalcLegajos($('only').value);
-      plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: typed.valid, only: just.valid });
+      plan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, excluded: typed.valid, only: just.valid });
       state = plan.batches.map(batch => ({ batch, state: 'queued', key: crypto.randomUUID(), confirmKey: crypto.randomUUID(), confirmed: false, totals: null, seconds: 0, error: '' })); boot = null;
       const notes = [];
       if (plan.only.length) notes.push('Solo se calculan: ' + plan.only.join(', ') + '.');
@@ -210,10 +211,10 @@ export function mountBatchCalc(host) {
   async function findUndo() {
     if (busy || !rows) return; busy = true; forgetUndo(); controls();
     try {
-      const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, excluded: batchCalcLegajos($('excluded').value).valid, only: batchCalcLegajos($('only').value).valid });
+      const wantedPlan = batchCalcPlan(rows, { agreement: $('agreement').value, period: $('period').value, liquidationType: $('type').value, excluded: batchCalcLegajos($('excluded').value).valid, only: batchCalcLegajos($('only').value).valid });
       const wanted = new Set(wantedPlan.batches.flatMap(b => b.contractIds)), seen = new Set(), targets = []; let blocked = 0, confirmed = 0, calculated = 0, own = 0;
       if (!wanted.size) { $('undo-status').textContent = 'No hay personas de ese convenio para buscar.'; return; }
-      const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period);
+      const runs = batchCalcUndoRuns((await getJson(OWN_LIQ_DETAIL_ENDPOINT + '?resource=bootstrap')).runs, wantedPlan.period, wantedPlan.liquidationType);
       for (const [index, run] of runs.entries()) {
         if (seen.size === wanted.size) break;
         $('undo-status').textContent = 'Leyendo las corridas del mes: ' + (index + 1) + ' de ' + runs.length + '. Encontradas ' + seen.size + ' de ' + wanted.size + ' personas…';
@@ -243,7 +244,7 @@ export function mountBatchCalc(host) {
   $('undo-find').addEventListener('click', findUndo); $('undo-go').addEventListener('click', () => undoAll('undo')); $('undo-confirm').addEventListener('click', () => undoAll('confirm')); $('undo-reviewed').addEventListener('change', controls); $('undo-reason').addEventListener('input', controls);
   $('confirm-go').addEventListener('click', confirmAll); $('reviewed').addEventListener('change', paint); $('reason').addEventListener('input', paint);
   $('load').addEventListener('click', load); $('plan').addEventListener('click', arrange); $('run').addEventListener('click', () => run());
-  for (const name of ['agreement', 'period', 'excluded', 'only']) $(name).addEventListener('input', () => { if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
+  for (const name of ['agreement', 'period', 'type', 'excluded', 'only']) $(name).addEventListener('input', () => { if (busy) return; if (undo) forgetUndo(); if (plan) { forget(); status('Cambió el pedido. Tocá «Armar tandas» de nuevo.'); } else controls(); });
   // Una decisión en curso no se corta por cerrar la pestaña sin querer.
   addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   status('Tocá «Traer convenios» para empezar.'); controls();

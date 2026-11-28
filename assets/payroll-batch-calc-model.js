@@ -5,6 +5,15 @@ export const BATCH_CALC_SIZE = 90;
 export const BATCH_CALC_MAX_PEOPLE = 5000;
 const LEGAJO = /^\d{1,9}$/;
 
+// Tipos de liquidación que ofrece la tarjeta, con el nombre que usa la gente. «Segunda liquidación» es el tipo V de GRH
+// (bono no remunerativo y premios); en MuniControl se registra con el código «vacation».
+export const BATCH_CALC_TYPES = Object.freeze([
+  { value: 'monthly', label: 'Mensual', reason: 'Liquidación mensual' },
+  { value: 'vacation', label: 'Segunda liquidación (bono y premios)', reason: 'Segunda liquidación' },
+  { value: 'sac', label: 'Aguinaldo', reason: 'Aguinaldo' },
+]);
+export const batchCalcType = value => BATCH_CALC_TYPES.find(t => t.value === value) ?? BATCH_CALC_TYPES[0];
+
 // Legajos escritos o pegados, separados por espacio, coma, punto y coma o renglón.
 export function batchCalcLegajos(text) {
   const seen = new Set(), valid = [], invalid = [];
@@ -33,7 +42,8 @@ export function batchCalcAgreements(rows) {
 
 // Arma las tandas: contratos activos del convenio que ya habían ingresado al cierre del mes, sin los legajos que este
 // mes no se liquidan. Las tandas quedan parejas (292 personas → 4 de 73, no 3 de 90 y una de 22).
-export function batchCalcPlan(rows, { agreement, period, excluded = [], only = [], size = BATCH_CALC_SIZE } = {}) {
+export function batchCalcPlan(rows, { agreement, period, excluded = [], only = [], liquidationType = 'monthly', size = BATCH_CALC_SIZE } = {}) {
+  if (!BATCH_CALC_TYPES.some(t => t.value === liquidationType)) throw Error('Elegí el tipo de liquidación.');
   if (!batchCalcPeriod(period)) throw Error('Elegí el mes a calcular.');
   if (typeof agreement !== 'string' || !agreement) throw Error('Elegí el convenio.');
   if (!Number.isSafeInteger(size) || size < 1 || size > 150) throw Error('El tamaño de tanda no es válido.');
@@ -55,7 +65,7 @@ export function batchCalcPlan(rows, { agreement, period, excluded = [], only = [
     batches.push({ index: i + 1, people: part.length, firstLegajo: part[0].legajo, lastLegajo: part.at(-1).legajo, contractIds: part.map(p => p.contractId).sort() });
   }
   return {
-    agreement, period, liquidationDate: closing, people: people.length, batches,
+    agreement, period, liquidationType, liquidationDate: closing, people: people.length, batches,
     excluded: [...found].sort((a, b) => Number(a) - Number(b)),
     excludedNotFound: just.size ? [] : [...out].filter(l => !found.has(l)).sort((a, b) => Number(a) - Number(b)),
     only: [...justFound].sort((a, b) => Number(a) - Number(b)),
@@ -86,8 +96,8 @@ export const batchCalcMoney = value => { const [whole, decimals] = String(value)
 
 // Deshacer lo calculado. Las corridas del mes se leen de la más nueva a la más vieja: la corrida más nueva que
 // contiene a una persona es la que dice su estado vigente (para volver a calcularla hubo que anular la anterior).
-export function batchCalcUndoRuns(runs, period) {
-  return (Array.isArray(runs) ? runs : []).filter(r => r?.period === period && r.liquidationType === 'monthly' && r.canConsult !== false)
+export function batchCalcUndoRuns(runs, period, liquidationType = 'monthly') {
+  return (Array.isArray(runs) ? runs : []).filter(r => r?.period === period && r.liquidationType === liquidationType && r.canConsult !== false)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || String(b.id).localeCompare(String(a.id)));
 }
 // De una corrida leída, qué personas buscadas aparecen por primera vez y qué admite cada una con la cuenta que
