@@ -6,6 +6,8 @@ import { OWN_RUN_FULL_JSON } from './own-payroll-response.js';
 import { batchCalcAgreements, batchCalcLegajos, batchCalcMoney, batchCalcPlan, batchCalcSum, batchCalcTotals, batchCalcType, batchCalcUndoRuns, batchCalcUndoScan, BATCH_CALC_TYPES } from './payroll-batch-calc-model.js';
 import { ownLiquidationCommand } from './own-payroll-liquidation-model.js';
 import { fetchOwnLiquidationDetail, OWN_LIQ_DETAIL_ENDPOINT } from './own-payroll-liquidation-read.js';
+import { fetchOwnClose, OWN_CLOSE_ENDPOINT } from './own-payroll-close-read.js';
+import { ownCloseCommand } from './own-payroll-close-model.js';
 
 const RUN = '/api/internal-own-payroll-run', ROSTER = '/api/internal-data?resource=nativeroster&schema=2&status=all';
 const node = (tag, text, cls) => { const e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; };
@@ -72,6 +74,21 @@ async function undoRun(run, command, contractIds, reason) {
   return values.length;
 }
 
+// Cierra lo confirmado vigente de UNA corrida (264): el detalle trae sólo sus personas, así un mes grande se cierra por
+// partes. Devuelve cuántas personas quedaron cerradas; 0 si esa corrida ya estaba cerrada.
+async function closeRun(run, period, liquidationType, reason) {
+  const read = await fetchOwnClose({ resource: 'detail', period, liquidationType, runId: run.id });
+  if (!read.ok) { if (read.payload?.code === 'OWN_CLOSE_SELECTION_INVALID') return 0; throw Object.assign(Error(read.status === 401 ? 'La sesión venció. Volvé a ingresar.' : read.status === 403 ? 'Tu cuenta no permite cerrar liquidaciones.' : read.payload?.error || 'No se pudo leer lo confirmado para cerrar.'), { status: read.status }); }
+  const detail = read.payload.data, rows = Array.isArray(detail?.rows) ? detail.rows : [];
+  if (!rows.length) return 0;
+  if (rows.some(r => r.canClose !== true)) throw Error('Hay personas de esta corrida que tu cuenta no puede cerrar o que cambiaron. Actualizá y probá otra vez.');
+  const body = ownCloseCommand({ period, liquidationType, scopeVersion: detail.scopeVersion, stateVersion: detail.stateVersion, selection: { kind: 'all', values: [] }, command: 'close', groupId: null, reason, reviewConfirmed: true });
+  const response = await fetch(OWN_CLOSE_ENDPOINT + '?' + new URLSearchParams({ runId: run.id }), { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'Idempotency-Key': crypto.randomUUID() }, body: JSON.stringify({ operation: 'command', payload: body }) });
+  let value = null; try { value = await response.json(); } catch { /* cuerpo incompleto */ }
+  if (!response.ok || value?.ok !== true) throw Object.assign(Error(response.status === 401 ? 'La sesión venció. Volvé a ingresar.' : response.status === 403 ? 'Tu cuenta no permite cerrar liquidaciones.' : value?.error || 'No se registró el cierre.'), { status: response.status });
+  return value.data?.snapshot?.employeeCount ?? rows.length;
+}
+
 export function mountBatchCalc(host) {
   if (!host || host.dataset.batchCalcMounted) return null; host.dataset.batchCalcMounted = '';
   const href = new URL('payroll-batch-calc.css', import.meta.url).href;
@@ -82,7 +99,8 @@ export function mountBatchCalc(host) {
     + '<div class="mc-batch-modes" role="tablist" aria-label="Qué querés hacer">'
     + '<button type="button" role="tab" data-bc-mode="calc" aria-selected="true"><b>Calcular</b><small>Liquidar un convenio o a algunas personas</small></button>'
     + '<button type="button" role="tab" data-bc-mode="confirm" aria-selected="false"><b>Confirmar</b><small>Dar por buena una liquidación ya calculada</small></button>'
-    + '<button type="button" role="tab" data-bc-mode="annul" aria-selected="false"><b>Anular</b><small>Deshacer una liquidación para corregirla</small></button></div>'
+    + '<button type="button" role="tab" data-bc-mode="annul" aria-selected="false"><b>Anular</b><small>Deshacer una liquidación para corregirla</small></button>'
+    + '<button type="button" role="tab" data-bc-mode="close" aria-selected="false"><b>Cerrar</b><small>Cerrar lo confirmado para emitir recibos y banco</small></button></div>'
     + '<ol class="mc-batch-steps">'
     + '<li><h4>Qué mes y qué convenio</h4><div class="mc-batch-form"><label>Mes <input type="month" data-bc-period></label>'
     + '<label>Tipo <select data-bc-type>' + BATCH_CALC_TYPES.map(t => '<option value="' + t.value + '">' + t.label + '</option>').join('') + '</select></label>'
@@ -103,7 +121,7 @@ export function mountBatchCalc(host) {
     + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-find>Buscar lo calculado</button></div><p class="mc-batch-status" role="status" aria-live="polite" data-bc-undo-status></p>'
     + '<div data-bc-undo-form hidden><label>Motivo <textarea data-bc-undo-reason rows="2" maxlength="500" placeholder="Escribí el motivo (mínimo 10 letras)"></textarea></label>'
     + '<label class="mc-batch-check"><input type="checkbox" data-bc-undo-reviewed> Revisé a quiénes alcanza</label>'
-    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button></div></div></li>'
+    + '<div class="mc-batch-actions"><button type="button" class="button primary" data-bc-undo-confirm disabled></button><button type="button" class="button danger" data-bc-undo-go disabled></button><button type="button" class="button primary" data-bc-undo-close disabled></button></div></div></li>'
     + '</ol>';
   const $ = name => host.querySelector('[data-bc-' + name + ']');
   const now = new Date(); $('period').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -115,8 +133,10 @@ export function mountBatchCalc(host) {
     $('undo-find').disabled = busy || !rows || !$('agreement').value;
     for (const tab of host.querySelectorAll('[data-bc-mode]')) { tab.setAttribute('aria-selected', String(tab.dataset.bcMode === mode)); tab.disabled = busy && tab.dataset.bcMode !== mode; }
     const count = kind => (undo ? undo.targets.filter(t => kind === 'confirm' ? t.command === 'confirm' : t.command !== 'confirm').reduce((n, t) => n + t.contractIds.length, 0) : 0), people = count('undo'), toConfirm = count('confirm'), ready = !busy && $('undo-reviewed').checked && $('undo-reason').value.trim().length >= 10;
-    const shown = mode === 'annul' ? people : toConfirm;
-    $('undo-form').hidden = !shown; $('undo-go').hidden = mode !== 'annul' || !people; $('undo-confirm').hidden = mode !== 'confirm' || !toConfirm;
+    const toClose = undo ? undo.targets.filter(t => t.command === 'annul').reduce((n, t) => n + t.contractIds.length, 0) : 0;
+    const shown = mode === 'annul' ? people : mode === 'close' ? toClose : toConfirm;
+    $('undo-form').hidden = !shown; $('undo-go').hidden = mode !== 'annul' || !people; $('undo-confirm').hidden = mode !== 'confirm' || !toConfirm; $('undo-close').hidden = mode !== 'close' || !toClose;
+    $('undo-close').textContent = 'Cerrar ' + toClose + (toClose === 1 ? ' persona' : ' personas'); $('undo-close').disabled = !ready || !toClose;
     $('undo-go').textContent = 'Anular ' + people + (people === 1 ? ' persona' : ' personas'); $('undo-confirm').textContent = 'Confirmar ' + toConfirm + (toConfirm === 1 ? ' persona' : ' personas');
     $('undo-go').disabled = !ready || !people; $('undo-confirm').disabled = !ready || !toConfirm; $('undo-reason').disabled = busy; $('undo-reviewed').disabled = busy;
     $('plan').disabled = busy || !rows || !$('agreement').value;
@@ -252,6 +272,23 @@ export function mountBatchCalc(host) {
       document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
     } finally { busy = false; controls(); }
   }
+  // Cerrar: corrida por corrida, sólo las que tienen personas confirmadas vigentes.
+  async function closeAll() {
+    if (busy || !undo) return; const reason = $('undo-reason').value.trim(); if (reason.length < 10 || !$('undo-reviewed').checked) return;
+    const runs = [...new Map(undo.targets.filter(t => t.command === 'annul').map(t => [t.run.id, t.run])).values()];
+    busy = true; controls(); let people = 0;
+    try {
+      for (const [index, run] of runs.entries()) {
+        $('undo-status').textContent = 'Cerrando: corrida ' + (index + 1) + ' de ' + runs.length + '. No cierres ni cambies de pantalla.';
+        try { people += await closeRun(run, $('period').value, $('type').value, reason); }
+        catch (e) { const done = new Set(runs.slice(0, index).map(r => r.id)); undo = { targets: undo.targets.filter(t => !done.has(t.run.id)) }; $('undo-status').textContent = 'Se cerraron ' + people + ' personas y después falló: ' + e.message + ' Tocá «Cerrar» otra vez para seguir.'; return; }
+      }
+      undo = null; $('undo-reason').value = ''; $('undo-reviewed').checked = false;
+      $('undo-status').textContent = 'Listo: ' + people + (people === 1 ? ' persona cerrada.' : ' personas cerradas.') + ' Ya se pueden emitir recibos, banco y reportes del mes.';
+      document.dispatchEvent(new CustomEvent('mc:pending-refresh'));
+    } finally { busy = false; controls(); }
+  }
+  $('undo-close').addEventListener('click', closeAll);
   $('undo-find').addEventListener('click', findUndo); $('undo-go').addEventListener('click', () => undoAll('undo')); $('undo-confirm').addEventListener('click', () => undoAll('confirm')); $('undo-reviewed').addEventListener('change', controls); $('undo-reason').addEventListener('input', controls);
   $('confirm-go').addEventListener('click', confirmAll); $('reviewed').addEventListener('change', paint); $('reason').addEventListener('input', paint);
   $('load').addEventListener('click', load); $('plan').addEventListener('click', arrange); $('run').addEventListener('click', () => run());
@@ -265,12 +302,13 @@ export function mountBatchCalc(host) {
     calc: ['Quiénes', 'Opcional. Vacío: todo el convenio.'],
     confirm: ['A quiénes confirmar', 'Opcional. Vacío: todo lo calculado del convenio en ese mes.'],
     annul: ['A quiénes anular', 'Opcional. Vacío: todo el convenio en ese mes. Para una sola persona, escribí su legajo.'],
+    close: ['A quiénes cerrar', 'Opcional. Vacío: todo lo confirmado del convenio en ese mes.'],
   };
   function setMode(next) {
     if (busy || next === mode) return; mode = next; forgetUndo();
     $('who-title').textContent = HELP[mode][0]; $('only-help').textContent = HELP[mode][1];
-    $('undo-title').textContent = mode === 'confirm' ? 'Buscar lo calculado y confirmarlo' : 'Buscar lo calculado y anularlo';
-    $('undo-help').textContent = mode === 'confirm' ? 'Busca lo calculado sin confirmar, lo haya calculado quien sea. Después lo confirmás todo junto con un motivo.' : 'Busca lo confirmado o calculado del mes para esas personas. Después lo anulás todo junto con un motivo. No se borra nada: queda registrado quién anuló y por qué.';
+    $('undo-title').textContent = { confirm: 'Buscar lo calculado y confirmarlo', annul: 'Buscar lo calculado y anularlo', close: 'Buscar lo confirmado y cerrarlo' }[mode] ?? '';
+    $('undo-help').textContent = { confirm: 'Busca lo calculado sin confirmar, lo haya calculado quien sea. Después lo confirmás todo junto con un motivo.', annul: 'Busca lo confirmado o calculado del mes para esas personas. Después lo anulás todo junto con un motivo. No se borra nada: queda registrado quién anuló y por qué.', close: 'Busca lo confirmado del mes y lo cierra corrida por corrida. Después del cierre se emiten recibos, banco y reportes; para cambiar algo cerrado primero hay que reabrirlo.' }[mode] ?? '';
     status(''); controls();
   }
   for (const tab of host.querySelectorAll('[data-bc-mode]')) tab.addEventListener('click', () => setMode(tab.dataset.bcMode));

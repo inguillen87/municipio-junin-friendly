@@ -29,9 +29,9 @@ export function createOwnCloseHandler(deps={}){
   if(fullJson&&!historyActive)closeFail('UNAVAILABLE',503,'La lectura completa del histórico no está habilitada en esta versión.');
   if(fullJson&&!supportsOwnPayrollStream(res))closeFail('UNAVAILABLE',503,'No está disponible la lectura completa. Consultá el mismo intento.');
   if(method==='POST'){
-   if(Object.keys(q).length)closeFail('QUERY_INVALID',400,'El cierre no admite parámetros.');schoolCertificateHttp.assertOrigin(req,env);
+   if(Object.keys(q).length&&Object.keys(q).join('|')!=='runId')closeFail('QUERY_INVALID',400,'El cierre sólo admite la corrida como parámetro.');schoolCertificateHttp.assertOrigin(req,env);
    if(schoolCertificateHttp.header(req,'content-type').split(';')[0].trim().toLowerCase()!=='application/json')closeFail('CONTENT_TYPE',415,'Se requiere un formulario JSON.');schoolCertificateHttp.checkLength(req,OWN_RUN_MAX_BODY);operation='command';
-  }else if(q.resource==='detail'&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation='detail';input={period:q.period,liquidationType:q.liquidationType};}
+  }else if(q.resource==='detail'&&['liquidationType|period|resource','liquidationType|period|resource|runId'].includes(Object.keys(q).sort().join('|'))){operation='detail';input={period:q.period,liquidationType:q.liquidationType,...(q.runId?{runId:q.runId}:{})};}
   else if(historyActive&&q.resource==='report-census'&&Object.keys(q).sort().join('|')==='liquidationType|period|resource'){operation='report-census';try{input=ownReportCensusQuery({period:q.period,liquidationType:q.liquidationType});}catch{closeFail('INPUT_INVALID',422,'Elegí el período y tipo del histórico cerrado.');}}
   else if(q.resource==='group'&&Object.keys(q).sort().join('|')==='id|resource'){operation='group';input={id:q.id};}
   else if(q.resource==='attempt'&&Object.keys(q).sort().join('|')==='key|resource'){operation='attempt';input={key:q.key};}
@@ -42,7 +42,7 @@ export function createOwnCloseHandler(deps={}){
   const session=sessionFor(access,env);employeeContext(access.principal,session);
   if(method==='POST'){
    const body=await readRawPrivateJson(req,{maxBytes:OWN_RUN_MAX_BODY,timeoutMs:10000,declaredLength:schoolCertificateHttp.header(req,'content-length'),fail:kind=>closeFail(kind==='large'?'LIMIT':kind==='unavailable'?'UNAVAILABLE':'INPUT_INVALID',kind==='large'?413:kind==='unavailable'?503:400,'No se verificó el envío completo. Consultá el mismo intento.')});
-   if(!salaryExact(body,['operation','payload'])||body.operation!=='command')closeFail('INPUT_INVALID',400,'Formulario no admitido.');let payload;try{payload=ownCloseCommand(body.payload);}catch{closeFail('INPUT_INVALID',422,'Revisá cierre, alcance y motivo.');}input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key')};
+   if(!salaryExact(body,['operation','payload'])||body.operation!=='command')closeFail('INPUT_INVALID',400,'Formulario no admitido.');let payload;try{payload=ownCloseCommand(body.payload);}catch{closeFail('INPUT_INVALID',422,'Revisá cierre, alcance y motivo.');}input={body:payload,key:schoolCertificateHttp.header(req,'idempotency-key'),...(q.runId?{runId:q.runId}:{})};
   }
   const expectedDestination=historyActive&&(fullJson||operation==='report-census')?historyDestination:null;let sql;
   try{sql=await getSql(env,{expectedDestination});}catch(e){if(method==='GET'&&expectedDestination!==null&&e?.code==='ACTION_DATABASE_DESTINATION_REQUIRED')closeFail('UNAVAILABLE',503,'No se pudo verificar el destino de lectura del histórico cerrado. Avisá a administración del sistema antes de volver a consultar.');throw e;}

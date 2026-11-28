@@ -15,7 +15,7 @@ const id = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const rows = Array.from({ length: 292 }, (_, i) => ({ contractId: id(i + 1), legajo: String(1000 + i), agreement: 'CONVENIO SINTÉTICO GRANDE', status: 'active', startDate: '2020-01-01' }))
   .concat(Array.from({ length: 12 }, (_, i) => ({ contractId: id(900 + i), legajo: String(5000 + i), agreement: 'CONVENIO SINTÉTICO CHICO', status: 'active', startDate: '2021-03-01' })));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
-const posts = [], decisions = [], runs = new Map(); let failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
+const posts = [], decisions = [], runs = new Map(), closed = new Set(), closes = [], closeReads = []; let failNext = 2, failDecision = 3, viewer = 'ana', selfConfirm = true, clock = Date.parse('2026-11-27T12:00:00Z');
 const allowed = (run, state) => state === 'confirmed' ? (selfConfirm || run.by !== viewer ? ['annul'] : []) : state === 'calculated' ? [...(selfConfirm || run.by !== viewer ? ['confirm'] : []), ...(run.by === viewer ? ['cancel'] : [])] : [];
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const send = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
@@ -28,6 +28,17 @@ const server = http.createServer(async (req, res) => {
     if (posts.length === failNext) return send(422, { ok: false, error: 'Falta la declaración familiar aprobada del contrato y período.' });
     const runId = id(7000 + posts.length), resultSha256 = String(posts.length % 10).repeat(64); runs.set(runId, { resultSha256, selection: body.payload.selection, by: viewer, createdAt: new Date(clock += 60000).toISOString(), states: new Map(body.payload.selection.values.map(c => [c, 'calculated'])) });
     return send(201, { ok: true, data: { id: runId, saved: { id: runId, resultSha256, result: { employeeTotals: body.payload.selection.values.map(contractId => ({ contractId, gross: '1000.10', deduction: '200.05', net: '800.05' })) } } } });
+  }
+  if (url.pathname === '/api/internal-own-payroll-close' && req.method === 'GET' && url.searchParams.get('resource') === 'detail') {
+    const run = runs.get(url.searchParams.get('runId')); if (!run) return send(400, { ok: false, code: 'OWN_CLOSE_INPUT_INVALID', error: 'Consulta inválida.' });
+    const open = [...run.states].filter(([c, st]) => st === 'confirmed' && !closed.has(c)); if (!open.length) return send(422, { ok: false, code: 'OWN_CLOSE_SELECTION_INVALID', error: 'No queda nada para cerrar en esa corrida.' });
+    closeReads.push(url.searchParams.get('runId'));
+    return send(200, { ok: true, data: { scopeVersion: 'e'.repeat(64), stateVersion: 'f'.repeat(64), rows: open.map(([contractId]) => ({ contractId, state: 'confirmed', runId: url.searchParams.get('runId'), canClose: true })), captures: [], groups: [] } });
+  }
+  if (url.pathname === '/api/internal-own-payroll-close' && req.method === 'POST') {
+    let raw = ''; for await (const chunk of req) raw += chunk; const body = JSON.parse(raw), run = runs.get(url.searchParams.get('runId'));
+    closes.push({ runId: url.searchParams.get('runId'), body }); const open = [...run.states].filter(([c, st]) => st === 'confirmed' && !closed.has(c)).map(([c]) => c); open.forEach(c => closed.add(c));
+    return send(201, { ok: true, data: { snapshot: { employeeCount: open.length } } });
   }
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'bootstrap') return send(200, { ok: true, data: { version: 'own-liquidation-bootstrap.v1', scopeVersion: 'c'.repeat(64), complete: true, runs: [...runs].map(([runId, run]) => ({ id: runId, period: '2026-11', liquidationType: 'monthly', createdAt: run.createdAt, employeeCount: run.states.size, resultSha256: run.resultSha256, canConsult: true })) } });
   if (url.pathname === '/api/internal-own-payroll-liquidation' && req.method === 'GET' && url.searchParams.get('resource') === 'detail') {
@@ -94,6 +105,13 @@ try {
   await page.waitForFunction(() => /2 personas confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
   assert.equal(decisions.at(-1).body.payload.command, 'confirm'); assert.equal([...runs.values()].flatMap(r => [...r.states.values()]).filter(v => v === 'confirmed').length, 290);
   checks.push('a second person confirms an agreement calculated by someone else with one button');
+  await page.locator('[data-bc-mode=close]').click(); await $('only').fill(''); await $('undo-find').click(); await page.waitForFunction(() => /290 confirmadas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  assert.equal(await $('undo-go').isHidden(), true); assert.equal(await $('undo-confirm').isHidden(), true); assert.equal(closes.length, 0);
+  await $('undo-reason').fill('Cierre de noviembre revisado contra la planilla'); await $('undo-reviewed').check(); assert.match(await $('undo-close').innerText(), /Cerrar 290 personas/); await $('undo-close').click();
+  await page.waitForFunction(() => /290 personas cerradas/.test(document.querySelector('[data-bc-undo-status]').textContent));
+  assert.ok(closes.length >= 4 && closes.every(c => c.body.operation === 'command' && c.body.payload.command === 'close' && c.body.payload.groupId === null && c.body.payload.selection.kind === 'all' && c.body.payload.period === '2026-11' && /^[0-9a-f-]{36}$/.test(c.runId)));
+  assert.equal(closed.size, 290); assert.equal(new Set(closeReads).size, closeReads.length, 'each run is read once');
+  checks.push('Cerrar closes the month run by run, each with its own small read, and all 290 people end closed');
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? null : [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 5).map(e => e.tagName + '.' + e.className).join(' | '));
