@@ -14,6 +14,7 @@
     "test:browser:membership-governance": "npm run build && node scripts/verify-admin-membership-governance-browser.mjs",
     "build": "npm run test && node scripts/build-friendly.mjs",
     "build:lab": "node scripts/verify-platform-baseline.mjs && node scripts/verify-friendly-containment.mjs && node -e \"import('node:fs').then(f=>f.mkdirSync('verification',{recursive:true}))\" && node scripts/build-friendly.mjs",
+    "vercel-build": "npm run build:lab",
     "db:schema": "node --env-file=.env.local scripts/apply-internal-schema.mjs",
     "db:actions:schema": "node --env-file=.env.local scripts/apply-action-center-schema.mjs",
     "db:actions:authority:schema": "node --env-file=.env.local scripts/apply-tenant-action-authority-schema.mjs",
