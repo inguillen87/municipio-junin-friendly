@@ -30,11 +30,11 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Refuse ambient database and optional local test inputs
         run: node scripts/lib/ci-tested-build.mjs preflight own-salary-conditions
-      - name: Complete original general tests and build once for this matrix
+      - name: Build once for this matrix (general tests run once in Complete unit tests)
         shell: bash
         run: |
           set -euo pipefail
-          npm run build 2>&1 | tee "$RUNNER_TEMP/ci-tested-build-own-salary-conditions.log"
+          npm run build:lab 2>&1 | tee "$RUNNER_TEMP/ci-tested-build-own-salary-conditions.log"
       - name: Seal tested public bytes with exact source and current-run identity
         id: custody
         run: node scripts/lib/ci-tested-build.mjs create own-salary-conditions

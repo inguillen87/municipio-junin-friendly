@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p verification/source-review
-          npm run build 2>&1 | tee verification/source-review/build.log
+          npm run build:lab 2>&1 | tee verification/source-review/build.log
       - run: npx playwright install --with-deps chromium
       - name: Exercise the installed integration page using synthetic API responses
         run: node scripts/verify-grh-backup-review-browser.mjs

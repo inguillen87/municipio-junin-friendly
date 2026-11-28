@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p verification/noelia-data-ux
-          npm run build 2>&1 | tee verification/noelia-data-ux/build.log
+          npm run build:lab 2>&1 | tee verification/noelia-data-ux/build.log
       - run: npx playwright install --with-deps chromium
       - name: Paged library, refresh and stale response regressions
         run: node scripts/verify-document-library-pagination.mjs

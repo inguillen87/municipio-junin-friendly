@@ -24,8 +24,6 @@ jobs:
       - name: Generate deterministic tracked integration
         run: node scripts/integrate-clock-operations.mjs
       - run: npm ci
-      - name: Repository tests
-        run: npm test
       - name: Clock operations unit and security tests
         run: node --test tests/attendance-clock-operations.test.js tests/internal-attendance-api.test.js tests/clock-dashboard-v2.test.js
       - name: Build

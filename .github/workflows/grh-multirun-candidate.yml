@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run build 2>&1 | tee verification/grh-multirun/build.log
+          npm run build:lab 2>&1 | tee verification/grh-multirun/build.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

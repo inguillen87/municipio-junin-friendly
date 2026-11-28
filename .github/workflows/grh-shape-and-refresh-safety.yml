@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run build 2>&1 | tee verification/grh-shape-refresh/build.log
+          npm run build:lab 2>&1 | tee verification/grh-shape-refresh/build.log
       - run: npx playwright install --with-deps chromium
       - name: Measure the previous library with the same synthetic catalog
         shell: bash

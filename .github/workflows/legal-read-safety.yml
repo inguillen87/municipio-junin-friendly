@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p verification/legal-read-release
-          npm run build 2>&1 | tee verification/legal-read-release/build.log
+          npm run build:lab 2>&1 | tee verification/legal-read-release/build.log
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-legal-read-safety-browser.mjs
       - run: node scripts/verify-legal-alert-center-browser.mjs

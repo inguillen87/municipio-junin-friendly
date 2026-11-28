@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p verification
-          npm run build 2>&1 | tee verification/picker-loading-build.log
+          npm run build:lab 2>&1 | tee verification/picker-loading-build.log
       - run: npx playwright install --with-deps chromium
       - name: Delayed reads and access regression
         run: node scripts/verify-employee-picker-loading.mjs

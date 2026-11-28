@@ -33,7 +33,7 @@ jobs:
       - name: Full tests and build
         run: |
           set -o pipefail
-          npm run build 2>&1 | tee verification/tests.log
+          npm run build:lab 2>&1 | tee verification/tests.log
       - run: npx playwright install --with-deps chromium
       - name: Library and regression browser tests
         run: |

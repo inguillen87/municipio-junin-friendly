@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run build 2>&1 | tee "$RUNNER_TEMP/own-art-general-build.log"
+          npm run build:lab 2>&1 | tee "$RUNNER_TEMP/own-art-general-build.log"
       - name: Seal every compiled public file against the actual checkout
         id: custody
         run: node scripts/own-art-tested-build.mjs create

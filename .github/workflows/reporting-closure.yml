@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p verification/reporting-closure
-          npm run build 2>&1 | tee verification/reporting-closure/build.log
+          npm run build:lab 2>&1 | tee verification/reporting-closure/build.log
       - run: npx playwright install --with-deps chromium
       - run: node scripts/verify-budget-structure-browser.mjs
       - run: node scripts/verify-report-centre-browser.mjs

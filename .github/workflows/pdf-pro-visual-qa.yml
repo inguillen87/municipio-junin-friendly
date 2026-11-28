@@ -26,8 +26,6 @@ jobs:
       - name: Verify Node.js exact version
         run: test "$(node --version)" = "v24.21.0"
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Full repository regression suite — npm run test
-        run: npm run test
       - name: Exercise PDF + original financial regression tests
         run: >
           node --test

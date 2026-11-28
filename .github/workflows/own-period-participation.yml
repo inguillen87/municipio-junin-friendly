@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run build 2>&1 | tee "$RUNNER_TEMP/own-period-general-build.log"
+          npm run build:lab 2>&1 | tee "$RUNNER_TEMP/own-period-general-build.log"
       - name: Seal all tested public bytes under the current source and run
         id: custody
         run: node scripts/lib/own-period-participation-tested-build.mjs create
