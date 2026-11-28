@@ -35,6 +35,9 @@ try{
   const file265=prefix+'-265.sql';fs.writeFileSync(file265,'BEGIN;\n'+m265+'\nCOMMIT;\n');
   const installed265=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M265 estados livianos de corrida: 1 funciones/.test(installed265.stdout+installed265.stderr),'265 installs the light run states read');
   await assert.rejects(execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file265],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000}),/M265_ALREADY_INSTALLED/);checks++;
+  const m266=fs.readFileSync(path.join(root,'scripts/migrations/266-own-liquidation-states-no-lock.sql'),'utf8').replaceAll('\r\n','\n').replaceAll('SET search_path=pg_catalog,public,pg_temp','SET search_path=pg_catalog,'+qa.schema+',public,pg_temp').replaceAll("'public'::regnamespace",q(qa.schema)+'::regnamespace').replaceAll('public.',qa.schema+'.');
+  const file266=prefix+'-266.sql';fs.writeFileSync(file266,'BEGIN;\n'+m266+'\nCOMMIT;\n');
+  const installed266=await execute(executable,[...db.args,'-v','ON_ERROR_STOP=1','-f',file266],{windowsHide:true,maxBuffer:4*1024*1024,timeout:90000});check(/M266 estados sin candado: 1 funciones/.test(installed266.stdout+installed266.stderr),'266 removes the run lock from the light read');
   const plain=v=>JSON.stringify(Object.fromEntries(Object.entries(v).filter(([k])=>!['version','capture'].includes(k)).sort()));
   for(const [actor,full] of [[reviewer,detail],[maker,makerDetail]]){const light=await liq(actor,'states',{id:c.id});check(light.version==='own-liquidation-states.v1'&&!('capture' in light)&&plain(light)===plain(full),'the light read equals the detail without the technical result');}
   await assert.rejects(liq(identity(qa.actors.checker,[]),'states',{id:c.id}),()=>true);checks++;
