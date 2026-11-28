@@ -81,7 +81,7 @@ for(const [label,mutate,expected] of [
 
 test('new totals normalization keeps exact coverage and declaration fields',()=>{
  const p=temporalOfficialPolicy();assert.deepEqual(normalizeOfficialTotalsPolicies([p],V2),[p]);
- for(const mutate of [p=>delete p.validUntil,p=>delete p.supersedes,p=>p.period='2027-01',p=>p.liquidationType='sac',p=>p.nonPositiveNet='allow',p=>p.rounding.mode='half_even',p=>p.totalCodes['999']=p.totalCodes['998'],p=>p.contributions['995'].push('1'),p=>p.sourceSha256='bad']){
+ for(const mutate of [p=>delete p.validUntil,p=>delete p.supersedes,p=>p.period='2027-01',p=>p.liquidationType='bonus',p=>p.nonPositiveNet='allow',p=>p.rounding.mode='half_even',p=>p.totalCodes['999']=p.totalCodes['998'],p=>p.contributions['995'].push('1'),p=>p.sourceSha256='bad']){
   const bad=clone(p);mutate(bad);assert.throws(()=>normalizeOfficialTotalsPolicy(bad));
  }
  assert.throws(()=>normalizeOfficialTotalsPolicies([p],V1),code('OFFICIAL_TOTALS_VERSION_INVALID'));
@@ -173,4 +173,11 @@ test('async closed validation freezes the whole official lineage before awaiting
  let entered,release;const reached=new Promise(r=>entered=r),gate=new Promise(r=>release=r);let count=0;
  Object.defineProperty(globalThis,'crypto',{configurable:true,value:{subtle:{async digest(...args){if(++count===1){entered();await gate;}return actual.subtle.digest(...args);}}}});
  try{const pending=verifiedOwnOfficialCloseSnapshot(original);await reached;original.sources[0].officialTotalsCapture.policies[0].sourceReference='changed during await';release();assert.deepEqual(await pending,before);}finally{release();Object.defineProperty(globalThis,'crypto',descriptor);}
+});
+
+test('a temporal totals policy may belong to another liquidation type, and an unknown type is refused',()=>{
+ const monthly=temporalOfficialPolicy(),sibling={...clone(monthly),policyId:'qa-official-vacation',liquidationType:'vacation'};
+ assert.equal(normalizeOfficialTotalsPolicy(sibling).liquidationType,'vacation');
+ assert.throws(()=>normalizeOfficialTotalsPolicy({...clone(monthly),liquidationType:'bonus'}),code('POLICY_SCOPE_INVALID'));
+ assert.equal(normalizeOfficialTotalsPolicies([monthly,sibling],V2).length,2,'one lineage per agreement and liquidation type');
 });

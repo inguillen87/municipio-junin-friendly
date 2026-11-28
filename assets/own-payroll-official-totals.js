@@ -2,7 +2,7 @@ import {cappedResultFields,normalizeCappedCapture,calculateCappedEffects} from '
 import { normalizeOwnPayrollQuantityInput, calculateOwnPayrollWithQuantities } from './own-payroll-quantity.js';
 import { decimal, rational, exactAdd, exactSubtract, exactCompare, exactEvidence, quantize, payrollRequire as require } from './own-payroll-exact.js';
 import { salarySerialized } from './native-salary-catalog-model.js';
-import {policyMonth,requirePolicyScope,requirePolicyDeclaration,policySha256,resolvePolicySuccession,resolvedPolicyAppliesTo} from './own-payroll-policy-validity.js';
+import {POLICY_LIQUIDATION_TYPES,policyMonth,requirePolicyScope,requirePolicyDeclaration,policySha256,resolvePolicySuccession,resolvedPolicyAppliesTo} from './own-payroll-policy-validity.js';
 import {payrollExpressionReference} from './own-payroll-expression.js';
 
 export const OWN_PAYROLL_OFFICIAL_TOTALS_VERSION='own-payroll-official-totals.v1';
@@ -34,7 +34,7 @@ export const resolveOfficialTotalsPolicies=policies=>resolvePolicySuccession(pol
 export function normalizeOfficialTotalsPolicy(raw){
  const temporal=Object.getOwnPropertyDescriptor(raw??{},'version')?.value===OWN_PAYROLL_OFFICIAL_TOTALS_V2_VERSION;
  shape(raw,['version',...(temporal?['policyId','supersedes','validFrom','validUntil']:['period']),'agreementCode','liquidationType','totalCodes','contributions','rounding','nonPositiveNet','sourceReference','sourceSha256']);
- if(temporal){requirePolicyScope(raw);requirePolicyDeclaration(raw);require(raw.liquidationType==='monthly','OFFICIAL_TOTALS_SCOPE_INVALID','La nueva vigencia conserva el tipo mensual del contrato económico.');}
+ if(temporal){requirePolicyScope(raw);requirePolicyDeclaration(raw);require(POLICY_LIQUIDATION_TYPES.includes(raw.liquidationType),'OFFICIAL_TOTALS_SCOPE_INVALID','La nueva vigencia declara un tipo de liquidación admitido.');}
  else require(raw.version===OWN_PAYROLL_OFFICIAL_TOTALS_VERSION&&canonicalCode(raw.agreementCode)&&/^(19|20)\d{2}-(0[1-9]|1[0-2])$/.test(raw.period)&&raw.liquidationType==='monthly','OFFICIAL_TOTALS_SCOPE_INVALID','La política debe declarar convenio, mes y tipo exactos.');
  require(raw.nonPositiveNet==='reject'&&raw.sourceReference?.length>=3&&raw.sourceReference.length<=180&&/^[a-f0-9]{64}$/.test(raw.sourceSha256),'OFFICIAL_TOTALS_POLICY_REQUIRED','Declarar política de neto, respaldo y huella.');
  if(temporal)require(payrollExpressionReference(raw.sourceReference),'OFFICIAL_TOTALS_POLICY_REQUIRED','La nueva política necesita una referencia documental de texto normalizado.');
@@ -65,7 +65,7 @@ export function normalizeOfficialTotalsPolicies(raw,version=OWN_PAYROLL_OFFICIAL
  * The declared selected ID is checked after resolving; it is not authority. */
 export function normalizeOfficialTotalsCapture(raw){
  shape(raw,['version','period','liquidationType','agreementCode','policies','policiesSha256','selectedPolicyId']);
- require(raw.version===OWN_PAYROLL_OFFICIAL_TOTALS_CAPTURE_V2_VERSION&&policyMonth(raw.period)&&raw.liquidationType==='monthly'&&canonicalCode(raw.agreementCode),'OFFICIAL_TOTALS_CAPTURE_INVALID','La captura oficial necesita versión, período, tipo y convenio explícitos.');
+ require(raw.version===OWN_PAYROLL_OFFICIAL_TOTALS_CAPTURE_V2_VERSION&&policyMonth(raw.period)&&POLICY_LIQUIDATION_TYPES.includes(raw.liquidationType)&&canonicalCode(raw.agreementCode),'OFFICIAL_TOTALS_CAPTURE_INVALID','La captura oficial necesita versión, período, tipo y convenio explícitos.');
  const policies=normalizeOfficialTotalsPolicies(raw.policies,OWN_PAYROLL_OFFICIAL_TOTALS_V2_VERSION);
  require(policies.every(p=>p.agreementCode===raw.agreementCode&&p.liquidationType===raw.liquidationType),'OFFICIAL_TOTALS_CAPTURE_INVALID','La captura no puede mezclar políticas de otro alcance.');
  const selected=resolveOfficialTotalsPolicies(policies).filter(entry=>resolvedPolicyAppliesTo(entry,raw));
