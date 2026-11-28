@@ -111,3 +111,14 @@ test('when nothing waits for this account, pending items decided by others fold 
   // Errors and anything this account can decide stay in the main grid.
   assert.match(ui, /\$\('grid'\)\.replaceChildren\(\.\.\.shown\.filter\(s => !others\.includes\(s\)\)/);
 });
+
+test('a program proposal made on an older program is mentioned but not counted as waiting', async () => {
+  const { programProposals } = await import('../assets/approvals-inbox-model.js');
+  const data = { program: { version: 'v2' }, salaryCatalog: { version: 's2' }, proposals: [
+    { status: 'pending', baseVersion: 'v1', salaryVersion: 's1', canReview: true, reason: 'Vieja', createdAt: '2026-11-26T23:37:00Z' },
+    { status: 'pending', baseVersion: 'v2', salaryVersion: 's2', canReview: true, reason: 'Vigente', createdAt: '2026-11-27T10:00:00Z' },
+    { status: 'approved', baseVersion: 'v1', salaryVersion: 's1' }] };
+  const card = programProposals({ data });
+  assert.equal(card.count, 1); assert.equal(card.reviewable, 1); assert.equal(card.items[0].what, 'Vigente'); assert.match(card.note, /1 propuesta vieja quedó/);
+  assert.equal(programProposals({ data: { ...data, proposals: data.proposals.slice(1) } }).note, undefined);
+});

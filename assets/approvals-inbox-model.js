@@ -26,6 +26,16 @@ function proposals(items, describe) {
   return { count: pending.length, reviewable: pending.filter(p => p.canReview === true).length, items: pending.slice(0, 3).map(p => ({ who: text(p.authorLabel, 60), when: shortDate(p.createdAt), what: describe ? describe(p) : text(p.reason) })) };
 }
 
+// Program proposals prepared on an older program or catalog can no longer be approved: they are not counted as
+// waiting, only mentioned, so «Aprobar todo» and this card agree.
+export function programProposals(payload) {
+  const data = payload?.data ?? {}, version = data.program?.version, salary = data.salaryCatalog?.version;
+  const current = p => (!version || p.baseVersion === version) && (!salary || !p.salaryVersion || p.salaryVersion === salary);
+  const pending = list(data.proposals).filter(p => p && p.status === 'pending'), live = pending.filter(current), stale = pending.length - live.length;
+  const base = proposals(live);
+  return stale ? { ...base, note: plural(stale, 'propuesta vieja quedó', 'propuestas viejas quedaron') + ' sobre una versión anterior del programa: ya no se puede aprobar y no cuenta como pendiente.' } : base;
+}
+
 // Monthly novelty batches: who prepared each one (from the commands the server allows) and why the account cannot decide.
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 function batchWhat(b) {
@@ -63,7 +73,7 @@ export function salaryMaster(p) {
 
 export const APPROVAL_SOURCES = Object.freeze([
   { key: 'program', area: 'Liquidaciones', title: 'Programa de cálculo', href: '/nomina#reglas', caps: ['workforce.employee.read', 'payroll.parameter.read'],
-    url: () => '/api/internal-own-payroll-program?resource=bootstrap', pick: p => proposals(p?.data?.proposals) },
+    url: () => '/api/internal-own-payroll-program?resource=bootstrap', pick: programProposals },
   { key: 'salary-master', area: 'Liquidaciones', title: 'Maestro salarial', href: '/nomina#parametros', caps: ['workforce.employee.read', 'payroll.parameter.read'],
     url: () => '/api/internal-native-salary?resource=bootstrap', pick: salaryMaster },
   { key: 'parameters', area: 'Liquidaciones', title: 'Parámetros salariales', href: '/nomina#parametros', caps: ['payroll.parameter.read'],
